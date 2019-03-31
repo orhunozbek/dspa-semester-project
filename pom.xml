@@ -92,6 +92,12 @@ under the License.
 			<version>1.2.17</version>
 			<scope>runtime</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>RELEASE</version>
+			<scope>compile</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -144,7 +150,7 @@ under the License.
 							</filters>
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>dspa2019.StreamingJob</mainClass>
+									<mainClass>template.StreamingJob</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>
