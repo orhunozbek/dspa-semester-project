@@ -1,13 +1,13 @@
 package test;
 
-import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.Test;
 
 public class JUnitTest {
 
+
     @Test
-    void addition() {
-        assertEquals(2, 2);
+    public void test() {
+        System.out.println("Test working");
     }
+
 }
