@@ -32,6 +32,7 @@ public class StreamDataPreparation {
         if (!workingDirectoryFile.exists()) {
             return false;
         }
+        cleanup();
 
         File streamsDirectory = new File(workingDirectory + "/streams");
         streamsDirectory.mkdirs();
@@ -56,6 +57,11 @@ public class StreamDataPreparation {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        Enricher enricher = new Enricher();
+        enricher.enrichCommentEventStream(commentEventStreamOrigFile, commentEventStreamFile);
+        enricher.enrichLikesEventStream(likesEventStreamOrigFile, likesEventStreamFile);
+        enricher.enrichPostEventStream(postEventStreamOrigFile, postEventStreamFile);
 
         return true;
     }
