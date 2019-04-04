@@ -7,7 +7,7 @@ import org.apache.commons.configuration2.ex.ConfigurationException;
 import java.io.File;
 
 public class Main {
-    private static String DEFAULT_CONFIG_LOCATION = "config.properties";
+    private static final String DEFAULT_CONFIG_LOCATION = "config.properties";
 
     private static Configurations configs;
     private static String location = "";
