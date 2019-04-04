@@ -78,6 +78,8 @@ public class Enricher {
                         placeId);
             }
 
+            csvPrinter.flush();
+
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -120,6 +122,8 @@ public class Enricher {
                 }
                 csvPrinter.printRecord(convertToEpoch(creationDate, 1), personId, postId, creationDate);
             }
+
+            csvPrinter.flush();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -183,6 +187,8 @@ public class Enricher {
                         forumId,
                         placeId);
             }
+
+            csvPrinter.flush();
 
         } catch (IOException e) {
             e.printStackTrace();
