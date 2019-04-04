@@ -7,7 +7,6 @@ import org.apache.commons.lang3.math.NumberUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 
 @JsonSerialize
 public class CommentEvent implements CSVReadable{
