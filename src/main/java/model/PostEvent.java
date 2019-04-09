@@ -15,10 +15,10 @@ public class PostEvent implements CSVReadable{
     private long timeMilisecond;
 
     @JsonProperty("id")
-    private long id;
+    private String id;
 
     @JsonProperty("personId")
-    private int personId;
+    private String personId;
 
     @JsonProperty("creationDate")
     private LocalDateTime creationDate;
@@ -39,24 +39,24 @@ public class PostEvent implements CSVReadable{
     private String content;
 
     @JsonProperty("tags")
-    private int[] tags;
+    private String[] tags;
 
     @JsonProperty("forumId")
-    private int forumId;
+    private String forumId;
 
     @JsonProperty("placeId")
-    private int placeId;
+    private String placeId;
 
 
     public long getTimeMilisecond() {
         return timeMilisecond;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
 
-    public int getPersonId() {
+    public String getPersonId() {
         return personId;
     }
 
@@ -84,15 +84,15 @@ public class PostEvent implements CSVReadable{
         return content;
     }
 
-    public int[] getTags() {
+    public String[] getTags() {
         return tags;
     }
 
-    public int getForumId() {
+    public String getForumId() {
         return forumId;
     }
 
-    public int getPlaceId() {
+    public String getPlaceId() {
         return placeId;
     }
 
@@ -102,17 +102,17 @@ public class PostEvent implements CSVReadable{
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
         this.timeMilisecond = Long.parseLong(record.get("timeMilisecond"));
-        this.id = Long.parseLong(record.get("id"));
-        this.personId = Integer.parseInt(record.get("personId"));
+        this.id = record.get("id");
+        this.personId = record.get("personId");
         this.creationDate = LocalDateTime.parse(record.get("creationDate"),formatter);
         this.imageFile = record.get("imageFile");
         this.locationIP = record.get("locationIP");
         this.browserUsed = record.get("browserUsed");
         this.language = record.get("language");
         this.content = record.get("content");
-        this.tags = Arrays.stream(record.get("tags").split("\\D+")).mapToInt(NumberUtils::toInt).toArray();
-        this.forumId = Integer.parseInt(record.get("forumId"));
-        this.placeId = Integer.parseInt(record.get("placeId"));
+        this.tags = record.get("tags").split("\\D+");
+        this.forumId = record.get("forumId");
+        this.placeId = record.get("placeId");
 
         return this;
     }

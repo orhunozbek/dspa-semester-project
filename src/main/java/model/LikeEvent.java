@@ -14,10 +14,10 @@ public class LikeEvent implements CSVReadable{
     private long timeMilisecond;
 
     @JsonProperty("personId")
-    private int personId;
+    private String personId;
 
     @JsonProperty("postId")
-    private long postId;
+    private String postId;
 
     @JsonProperty("creationDate")
     private LocalDateTime creationDate;
@@ -26,11 +26,11 @@ public class LikeEvent implements CSVReadable{
         return timeMilisecond;
     }
 
-    public int getPersonId() {
+    public String getPersonId() {
         return personId;
     }
 
-    public long getPostId() {
+    public String getPostId() {
         return postId;
     }
 
@@ -43,8 +43,8 @@ public class LikeEvent implements CSVReadable{
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
         this.timeMilisecond = Long.parseLong(record.get("timeMilisecond"));
-        this.postId = Long.parseLong(record.get("Post.id"));
-        this.personId = Integer.parseInt(record.get("Person.id"));
+        this.postId = record.get("Post.id");
+        this.personId = record.get("Person.id");
         this.creationDate = LocalDateTime.parse(record.get("creationDate"),formatter);
 
         return this;

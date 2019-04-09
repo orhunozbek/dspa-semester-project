@@ -15,10 +15,10 @@ public class CommentEvent implements CSVReadable{
     private long timeMilisecond;
 
     @JsonProperty("id")
-    private long id;
+    private String id;
 
     @JsonProperty("personId")
-    private int personId;
+    private String personId;
 
     @JsonProperty("creationDate")
     private LocalDateTime creationDate;
@@ -33,23 +33,23 @@ public class CommentEvent implements CSVReadable{
     private String content;
 
     @JsonProperty("reply_to_postId")
-    private long reply_to_postId;
+    private String reply_to_postId;
 
     @JsonProperty("reply_to_commentId")
-    private long reply_to_commentId;
+    private String reply_to_commentId;
 
     @JsonProperty("placeId")
-    private int placeId;
+    private String placeId;
 
     public long getTimeMilisecond() {
         return timeMilisecond;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
 
-    public int getPersonId() {
+    public String getPersonId() {
         return personId;
     }
 
@@ -69,15 +69,15 @@ public class CommentEvent implements CSVReadable{
         return content;
     }
 
-    public long getReply_to_postId() {
+    public String getReply_to_postId() {
         return reply_to_postId;
     }
 
-    public long getReply_to_commentId() {
+    public String getReply_to_commentId() {
         return reply_to_commentId;
     }
 
-    public int getPlaceId() {
+    public String getPlaceId() {
         return placeId;
     }
 
@@ -86,15 +86,15 @@ public class CommentEvent implements CSVReadable{
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
         this.timeMilisecond = Long.parseLong(record.get("timeMilisecond"));
-        this.id = Long.parseLong(record.get("id"));
-        this.personId = Integer.parseInt(record.get("personId"));
+        this.id = record.get("id");
+        this.personId = record.get("personId");
         this.creationDate = LocalDateTime.parse(record.get("creationDate"),formatter);
         this.locationIP = record.get("locationIP");
         this.browserUsed = record.get("browserUsed");
         this.content = record.get("content");
-        this.reply_to_postId = NumberUtils.toLong(record.get("reply_to_postId"));
-        this.reply_to_commentId = NumberUtils.toLong(record.get("reply_to_commentId"));
-        this.placeId = Integer.parseInt(record.get("placeId"));
+        this.reply_to_postId = record.get("reply_to_postId");
+        this.reply_to_commentId = record.get("reply_to_commentId");
+        this.placeId = record.get("placeId");
 
         return this;
     }
