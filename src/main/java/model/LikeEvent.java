@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class LikeEvent implements CSVReadable{
+public class LikeEvent extends Event implements CSVReadable{
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -53,5 +53,10 @@ public class LikeEvent implements CSVReadable{
     @Override
     public String getTopicName() {
         return "likes";
+    }
+
+    @Override
+    public long getTimestamp() {
+        return timeMilisecond;
     }
 }

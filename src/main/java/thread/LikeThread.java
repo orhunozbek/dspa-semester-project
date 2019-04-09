@@ -1,12 +1,13 @@
 package thread;
 
 import kafka.EventDeserializer;
+import model.Event;
 import model.LikeEvent;
-import model.PostEvent;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import preparation.ReorderProcess;
 
 import java.util.Properties;
 
@@ -28,15 +29,17 @@ public class LikeThread extends Thread {
                 new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
 
         DataStream<LikeEvent> result = edits
-                .map(new MapFunction<LikeEvent, LikeEvent>() {
+                .map(new MapFunction<LikeEvent, Event>() {
                     @Override
-                    public LikeEvent map(LikeEvent event) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+                    public Event map(LikeEvent event) {
                         return event;
+                    }
+                })
+                .process(new ReorderProcess()).setParallelism(1)
+                .map(new MapFunction<Event, LikeEvent>() {
+                    @Override
+                    public LikeEvent map(Event event) throws Exception {
+                        return (LikeEvent) event;
                     }
                 });
         result.print();

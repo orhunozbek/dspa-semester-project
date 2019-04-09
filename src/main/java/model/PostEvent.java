@@ -9,7 +9,7 @@ import java.util.Arrays;
 import org.apache.commons.lang3.math.NumberUtils;
 
 @JsonSerialize
-public class PostEvent implements CSVReadable{
+public class PostEvent extends Event implements CSVReadable{
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -120,5 +120,10 @@ public class PostEvent implements CSVReadable{
     @Override
     public String getTopicName() {
         return "posts";
+    }
+
+    @Override
+    public long getTimestamp() {
+        return timeMilisecond;
     }
 }

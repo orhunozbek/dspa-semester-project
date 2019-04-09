@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class CommentEvent implements CSVReadable{
+public class CommentEvent extends Event implements CSVReadable{
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -102,5 +102,10 @@ public class CommentEvent implements CSVReadable{
     @Override
     public String getTopicName() {
         return "comments";
+    }
+
+    @Override
+    public long getTimestamp() {
+        return timeMilisecond;
     }
 }
