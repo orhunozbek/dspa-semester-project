@@ -38,6 +38,15 @@ public class LikeEvent extends Event implements CSVReadable{
         return creationDate;
     }
 
+    public LikeEvent() {}
+
+    public LikeEvent(long timeMilisecond, String personId, String postId, LocalDateTime creationDate) {
+        this.timeMilisecond = timeMilisecond;
+        this.personId = personId;
+        this.postId = postId;
+        this.creationDate = creationDate;
+    }
+
     @Override
     public LikeEvent fromCSVRecord(CSVRecord record) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");

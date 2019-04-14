@@ -81,6 +81,21 @@ public class CommentEvent extends Event implements CSVReadable{
         return placeId;
     }
 
+    CommentEvent(){}
+
+    public CommentEvent(long timeMilisecond, String id, String personId, LocalDateTime creationDate, String locationIP, String browserUsed, String content, String reply_to_postId, String reply_to_commentId, String placeId) {
+        this.timeMilisecond = timeMilisecond;
+        this.id = id;
+        this.personId = personId;
+        this.creationDate = creationDate;
+        this.locationIP = locationIP;
+        this.browserUsed = browserUsed;
+        this.content = content;
+        this.reply_to_postId = reply_to_postId;
+        this.reply_to_commentId = reply_to_commentId;
+        this.placeId = placeId;
+    }
+
     @Override
     public CommentEvent fromCSVRecord(CSVRecord record) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");

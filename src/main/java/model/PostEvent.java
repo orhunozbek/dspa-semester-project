@@ -96,6 +96,23 @@ public class PostEvent extends Event implements CSVReadable{
         return placeId;
     }
 
+    public PostEvent(){}
+
+    public PostEvent(long timeMilisecond, String id, String personId, LocalDateTime creationDate, String imageFile, String locationIP, String browserUsed, String language, String content, String[] tags, String forumId, String placeId) {
+        this.timeMilisecond = timeMilisecond;
+        this.id = id;
+        this.personId = personId;
+        this.creationDate = creationDate;
+        this.imageFile = imageFile;
+        this.locationIP = locationIP;
+        this.browserUsed = browserUsed;
+        this.language = language;
+        this.content = content;
+        this.tags = tags;
+        this.forumId = forumId;
+        this.placeId = placeId;
+    }
+
     @Override
     public PostEvent fromCSVRecord(CSVRecord record) {
 
