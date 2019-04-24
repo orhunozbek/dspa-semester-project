@@ -80,7 +80,8 @@ public class CommentEvent implements Event {
         return placeId;
     }
 
-    CommentEvent(){}
+    private CommentEvent() {
+    }
 
     public CommentEvent(long timeMilisecond, String id, String personId, LocalDateTime creationDate, String locationIP, String browserUsed, String content, String reply_to_postId, String reply_to_commentId, String placeId) {
         this.timeMilisecond = timeMilisecond;
@@ -95,8 +96,7 @@ public class CommentEvent implements Event {
         this.placeId = placeId;
     }
 
-    @Override
-    public CommentEvent fromCSVRecord(CSVRecord record) {
+    public CommentEvent(CSVRecord record) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
         this.timeMilisecond = Long.parseLong(record.get("timeMilisecond"));
@@ -109,8 +109,6 @@ public class CommentEvent implements Event {
         this.reply_to_postId = record.get("reply_to_postId");
         this.reply_to_commentId = record.get("reply_to_commentId");
         this.placeId = record.get("placeId");
-
-        return this;
     }
 
     @Override

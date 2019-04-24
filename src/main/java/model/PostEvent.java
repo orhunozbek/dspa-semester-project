@@ -95,7 +95,8 @@ public class PostEvent implements Event {
         return placeId;
     }
 
-    public PostEvent(){}
+    private PostEvent() {
+    }
 
     public PostEvent(long timeMilisecond, String id, String personId, LocalDateTime creationDate, String imageFile, String locationIP, String browserUsed, String language, String content, String[] tags, String forumId, String placeId) {
         this.timeMilisecond = timeMilisecond;
@@ -112,8 +113,7 @@ public class PostEvent implements Event {
         this.placeId = placeId;
     }
 
-    @Override
-    public PostEvent fromCSVRecord(CSVRecord record) {
+    public PostEvent(CSVRecord record) {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
@@ -130,7 +130,6 @@ public class PostEvent implements Event {
         this.forumId = record.get("forumId");
         this.placeId = record.get("placeId");
 
-        return this;
     }
 
     @Override

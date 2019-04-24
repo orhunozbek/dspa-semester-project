@@ -38,7 +38,8 @@ public class LikeEvent implements Event {
         return creationDate;
     }
 
-    public LikeEvent() {}
+    private LikeEvent() {
+    }
 
     public LikeEvent(long timeMilisecond, String personId, String postId, LocalDateTime creationDate) {
         this.timeMilisecond = timeMilisecond;
@@ -47,8 +48,7 @@ public class LikeEvent implements Event {
         this.creationDate = creationDate;
     }
 
-    @Override
-    public LikeEvent fromCSVRecord(CSVRecord record) {
+    public LikeEvent(CSVRecord record) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
         this.timeMilisecond = Long.parseLong(record.get("timeMilisecond"));
@@ -56,7 +56,6 @@ public class LikeEvent implements Event {
         this.personId = record.get("Person.id");
         this.creationDate = LocalDateTime.parse(record.get("creationDate"),formatter);
 
-        return this;
     }
 
     @Override

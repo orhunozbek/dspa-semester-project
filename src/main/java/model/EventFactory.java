@@ -10,18 +10,15 @@ public class EventFactory {
     public static Event getEventFromTopicAndRecord(ReaderUtils.Topic topic, CSVRecord record) {
         switch (topic) {
             case Post: {
-                PostEvent event = new PostEvent();
-                return event.fromCSVRecord(record);
+                return new PostEvent(record);
             }
 
             case Like: {
-                LikeEvent event = new LikeEvent();
-                return event.fromCSVRecord(record);
+                return new LikeEvent(record);
             }
 
             case Comment: {
-                CommentEvent event = new CommentEvent();
-                return event.fromCSVRecord(record);
+                return new CommentEvent(record);
             }
 
             default:
