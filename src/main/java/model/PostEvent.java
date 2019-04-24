@@ -3,13 +3,12 @@ package model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.annotation.JsonSerialize;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import org.apache.commons.lang3.math.NumberUtils;
 
 @JsonSerialize
-public class PostEvent extends Event implements CSVReadable{
+public class PostEvent implements Event {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;

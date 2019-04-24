@@ -1,10 +1,7 @@
 package thread;
 
 import kafka.EventDeserializer;
-import model.Event;
-import model.LikeEvent;
 import model.PostEvent;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
@@ -31,19 +28,8 @@ public class PostThread extends Thread{
                 new FlinkKafkaConsumer011<>("posts", new EventDeserializer<>(PostEvent.class), kafkaProps));
 
         DataStream<PostEvent> result = edits
-                .map(new MapFunction<PostEvent, Event>() {
-                    @Override
-                    public Event map(PostEvent event) {
-                        return event;
-                    }
-                })
-                .process(new ReorderProcess()).setParallelism(1)
-                .map(new MapFunction<Event, PostEvent>() {
-                    @Override
-                    public PostEvent map(Event event) throws Exception {
-                        return (PostEvent) event;
-                    }
-                });
+                .process(new ReorderProcess<PostEvent>()).setParallelism(1);
+
         result.print();
 
         try {

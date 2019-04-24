@@ -1,14 +1,14 @@
 package kafka;
 
-import model.CSVReadable;
+import model.Event;
 import model.EventFactory;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
 import preparation.ReaderUtils;
 
 import java.io.File;
@@ -30,8 +30,7 @@ public class EventKafkaProducer {
                 StringSerializer.class);
 
 
-
-        KafkaProducer<String, CSVReadable> producer = new KafkaProducer<>(kafkaProps);
+        KafkaProducer<String, Event> producer = new KafkaProducer<>(kafkaProps);
 
         try {
 
@@ -46,7 +45,7 @@ public class EventKafkaProducer {
             CSVParser csvParser = new CSVParser(reader, inputFormat);
 
             for(CSVRecord record : csvParser) {
-                CSVReadable obj =  EventFactory.getEventFromTopicAndRecord(topic, record);
+                Event obj = EventFactory.getEventFromTopicAndRecord(topic, record);
                 producer.send(new ProducerRecord<>(obj.getTopicName(), obj));
             }
 

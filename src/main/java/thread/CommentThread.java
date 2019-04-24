@@ -2,8 +2,6 @@ package thread;
 
 import kafka.EventDeserializer;
 import model.CommentEvent;
-import model.Event;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
@@ -30,19 +28,8 @@ public class CommentThread extends Thread {
                 new FlinkKafkaConsumer011<>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
 
         DataStream<CommentEvent> result = edits
-                .map(new MapFunction<CommentEvent, Event>() {
-                    @Override
-                    public CommentEvent map(CommentEvent event) {
-                        return event;
-                    }
-                })
-                .process(new ReorderProcess()).setParallelism(1)
-                .map(new MapFunction<Event, CommentEvent>() {
-                    @Override
-                    public CommentEvent map(Event event) throws Exception {
-                        return (CommentEvent) event;
-                    }
-                });
+                .process(new ReorderProcess<CommentEvent>()).setParallelism(1);
+
         result.print();
 
         try {

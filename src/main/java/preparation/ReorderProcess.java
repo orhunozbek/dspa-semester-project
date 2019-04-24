@@ -10,7 +10,7 @@ import java.util.Comparator;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class ReorderProcess extends ProcessFunction<Event, Event> {
+public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
 
     boolean firstElement = true;
     long timeDifference;
@@ -18,13 +18,12 @@ public class ReorderProcess extends ProcessFunction<Event, Event> {
     int minDelayInMilli;
     int maxDelayInMilli;
     long startingTimestamp;
-
     long outOfOrderCheck;
 
-    TreeSet<Tuple<Long,Event>> buffer;
+    TreeSet<Tuple<Long, T>> buffer;
 
     @Override
-    public void processElement(Event event, Context context, Collector<Event> collector) throws Exception {
+    public void processElement(T event, Context context, Collector<T> collector) throws Exception {
         long currentProcessingTime = context.timerService().currentProcessingTime();
         if (firstElement) {
             outOfOrderCheck = event.getTimestamp();
@@ -56,9 +55,9 @@ public class ReorderProcess extends ProcessFunction<Event, Event> {
             if(buffer.size() == 0) {
                 break;
             }
-            Tuple<Long,Event> iter = buffer.first();
+            Tuple<Long, T> iter = buffer.first();
             long iterTimestamp = iter.x;
-            Event iterEvent = iter.y;
+            T iterEvent = iter.y;
             if(iterTimestamp < currentProcessingTime) {
                 collector.collect(iterEvent);
                 buffer.remove(iter);

@@ -7,7 +7,7 @@ import preparation.ReaderUtils;
 public class EventFactory {
 
     @NotNull
-    public static CSVReadable getEventFromTopicAndRecord(ReaderUtils.Topic topic, CSVRecord record) {
+    public static Event getEventFromTopicAndRecord(ReaderUtils.Topic topic, CSVRecord record) {
         switch (topic) {
             case Post: {
                 PostEvent event = new PostEvent();

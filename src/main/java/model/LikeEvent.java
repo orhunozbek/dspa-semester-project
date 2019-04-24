@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class LikeEvent extends Event implements CSVReadable{
+public class LikeEvent implements Event {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;

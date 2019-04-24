@@ -1,7 +1,12 @@
 package model;
 
-public abstract class Event {
+import org.apache.commons.csv.CSVRecord;
 
-    public abstract long getTimestamp();
 
+public interface Event {
+    Event fromCSVRecord(CSVRecord record);
+
+    String getTopicName();
+
+    long getTimestamp();
 }
