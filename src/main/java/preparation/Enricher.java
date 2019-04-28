@@ -47,8 +47,6 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            long time = 0;
-
             for(CSVRecord record : csvParser) {
                 String id = record.get("id");
                 String personId = record.get("personId");
@@ -60,12 +58,6 @@ public class Enricher {
                 String replyToCommentId = record.get("reply_to_commentId");
                 String placeId = record.get("placeId");
 
-                if(time > convertToEpoch(creationDate, 0)) {
-                    System.out.println("RACKET NOT SORTED");
-                    time = convertToEpoch(creationDate, 0);
-                } else {
-                    time = convertToEpoch(creationDate, 0);
-                }
                 csvPrinter.printRecord(convertToEpoch(creationDate, 0),
                         id,
                         personId,
@@ -107,19 +99,11 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            long time = 0;
-
             for(CSVRecord record : csvParser) {
                 String personId = record.get("Person.id");
                 String postId = record.get("Post.id");
                 String creationDate = record.get("creationDate");
 
-                if(time > convertToEpoch(creationDate, 1)) {
-                    System.out.println("RACKET NOT SORTED");
-                    time = convertToEpoch(creationDate, 1);
-                } else {
-                    time = convertToEpoch(creationDate, 1);
-                }
                 csvPrinter.printRecord(convertToEpoch(creationDate, 1), personId, postId, creationDate);
             }
 
@@ -153,8 +137,6 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            long time = 0;
-
             for(CSVRecord record : csvParser) {
                 String id = record.get("id");
                 String personId = record.get("personId");
@@ -168,12 +150,6 @@ public class Enricher {
                 String forumId = record.get("forumId");
                 String placeId = record.get("placeId");
 
-                if(time > convertToEpoch(creationDate, 0)) {
-                    System.out.println("RACKET NOT SORTED");
-                    time = convertToEpoch(creationDate, 0);
-                } else {
-                    time = convertToEpoch(creationDate, 0);
-                }
                 csvPrinter.printRecord(convertToEpoch(creationDate, 0),
                         id,
                         personId,

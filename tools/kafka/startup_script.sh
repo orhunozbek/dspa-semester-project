@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 bin/zookeeper-server-start.sh config/zookeeper.properties &
 
 sleep 5
