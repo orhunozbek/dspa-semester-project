@@ -6,12 +6,19 @@ import model.LikeEvent;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.functions.RichReduceFunction;
+import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
@@ -20,22 +27,27 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SplitStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.util.Collector;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Properties;
+import javax.xml.stream.events.Comment;
+import java.util.*;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
 
 public class Task1 {
+
+    //initialize Logger
+    private static Logger logger = LoggerFactory.getLogger(Task1.class);
 
     public static void main(String[] args) throws Exception {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -67,19 +79,18 @@ public class Task1 {
                         return element.getTimeMilisecond();
                     }
                 })
-
                 .split(new OutputSelector<CommentEvent>() {
-                @Override
-                public Iterable<String> select(CommentEvent commentEvent) {
-                    List<String> output = new ArrayList<String>();
-                    if (commentEvent.getReply_to_postId().equals("")) {
-                        output.add("withoutPostID");
+                    @Override
+                    public Iterable<String> select(CommentEvent commentEvent) {
+                        List<String> output = new ArrayList<String>();
+                        if (commentEvent.getReply_to_postId().equals("")) {
+                            output.add("withoutPostID");
+                        }
+                        else {
+                            output.add("withPostID");
+                        }
+                        return output;
                     }
-                    else {
-                        output.add("withPostID");
-                    }
-                    return output;
-                }
                 });
 
         // Replies to a comment
@@ -130,36 +141,39 @@ public class Task1 {
 
                             @Override
                             public void processElement(CommentEvent commentEvent, ReadOnlyContext readOnlyContext, Collector<CommentEvent> collector) throws Exception {
-                                //final MapState<String, String>  state = getRuntimeContext().getMapState(mapStateDesc);
-                                mapState.put(commentEvent.getId(),commentEvent.getReply_to_postId());
-                                collector.collect(commentEvent);
+                                addToMapState(commentEvent, collector);
+                            }
 
-                                Object arr = cache.get(commentEvent.getReply_to_commentId());
+                            private void addToMapState(CommentEvent commentEvent, Collector<CommentEvent> collector){
 
-                                if(arr!= null){
-                                    for (CommentEvent event: (ArrayList<CommentEvent>)arr) {
+                                    mapState.put(commentEvent.getId(),commentEvent.getReply_to_postId());
+                                    collector.collect(commentEvent);
 
-                                        CommentEvent updatedCommentEvent =
-                                                new CommentEvent(event.getTimeMilisecond(),
-                                                        event.getId(),
-                                                        event.getPersonId(),
-                                                        event.getCreationDate(),
-                                                        event.getLocationIP(),
-                                                        event.getBrowserUsed(),
-                                                        event.getContent(),
-                                                        commentEvent.getReply_to_postId(),
-                                                        event.getReply_to_commentId(),
-                                                        event.getPlaceId());
+                                    Object arr = cache.get(commentEvent.getId());
 
-                                        collector.collect(updatedCommentEvent);
+                                    if(arr!= null) {
+                                        for (CommentEvent event : (ArrayList<CommentEvent>) arr) {
 
+                                            CommentEvent updatedCommentEvent =
+                                                    new CommentEvent(event.getTimeMilisecond(),
+                                                            event.getId(),
+                                                            event.getPersonId(),
+                                                            event.getCreationDate(),
+                                                            event.getLocationIP(),
+                                                            event.getBrowserUsed(),
+                                                            event.getContent(),
+                                                            commentEvent.getReply_to_postId(),
+                                                            event.getReply_to_commentId(),
+                                                            event.getPlaceId());
+
+                                            addToMapState(updatedCommentEvent, collector);
+                                        }
                                     }
-                                }
                             }
 
                             @Override
                             public void processBroadcastElement(CommentEvent commentEvent, Context context, Collector<CommentEvent> collector) throws Exception {
-                               // final MapState<String, String>  state = getRuntimeContext().getMapState(mapStateDesc);
+                                // final MapState<String, String>  state = getRuntimeContext().getMapState(mapStateDesc);
 
                                 if (mapState.get(commentEvent.getReply_to_commentId())!=null){
 
@@ -167,25 +181,29 @@ public class Task1 {
                                     mapState.put(commentEvent.getId(),postId);
 
                                     CommentEvent updatedCommentEvent =
-                                          new CommentEvent(commentEvent.getTimeMilisecond(),
-                                                         commentEvent.getId(),
-                                                         commentEvent.getPersonId(),
-                                                         commentEvent.getCreationDate(),
-                                                         commentEvent.getLocationIP(),
-                                                         commentEvent.getBrowserUsed(),
-                                                         commentEvent.getContent(),
-                                                         postId,
-                                                         commentEvent.getReply_to_commentId(),
-                                                         commentEvent.getPlaceId());
+                                            new CommentEvent(commentEvent.getTimeMilisecond(),
+                                                    commentEvent.getId(),
+                                                    commentEvent.getPersonId(),
+                                                    commentEvent.getCreationDate(),
+                                                    commentEvent.getLocationIP(),
+                                                    commentEvent.getBrowserUsed(),
+                                                    commentEvent.getContent(),
+                                                    postId,
+                                                    commentEvent.getReply_to_commentId(),
+                                                    commentEvent.getPlaceId());
 
-                                    collector.collect(updatedCommentEvent);
+                                    addToMapState(updatedCommentEvent, collector);
 
-                                }else{
+                                }
 
-                                    if(cache.get(commentEvent.getReply_to_commentId())== null){
+                                else{
+
+                                    if(cache.get(commentEvent.getReply_to_commentId()) == null){
+
                                         ArrayList<CommentEvent> arr = new ArrayList<>();
                                         arr.add(commentEvent);
                                         cache.put(commentEvent.getReply_to_commentId(),arr);}
+
                                     else{
                                         ArrayList<CommentEvent> arr =
                                                 (ArrayList<CommentEvent>) cache.get(commentEvent.getReply_to_commentId());
@@ -199,53 +217,114 @@ public class Task1 {
                 );
 
         // DataStream for likes
+        // Going to be used for user engagement and active post tracking
         DataStream<LikeEvent> likeEventsSource = env.addSource(
                 new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
 
-        DataStream<Tuple2<String, Integer>> likeEvents = likeEventsSource
+        DataStream<LikeEvent> likeEvents = likeEventsSource
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
 
                     @Override
                     public long extractTimestamp(LikeEvent element) {
                         return element.getTimeMilisecond();
                     }
-                })
-                .map(new MapFunction<LikeEvent, Tuple2<String,
-                        Integer>>() {
-                    @Override
-                    public Tuple2<String, Integer> map(LikeEvent event) {
-                        return new Tuple2<>(
-                                event.getPostId(),1);
-                    }
-
                 });
 
 
+        //Part 1: Calculation of replies for Output
+        DataStream<Tuple5<String, Integer, Integer, Integer, Integer>>  repliesCounts = replies.map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Integer>>() {
+            @Override
+            public Tuple5<String, Integer, Integer, Integer, Integer> map(CommentEvent commentEvent) throws Exception {
+                return new Tuple5<>(commentEvent.getReply_to_postId(),1,0,0,0);
+            }
+        });
+        //.keyBy(0)
+        //.window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
+        //.reduce(new ReduceFunction<Tuple5<String, Integer, Integer, Integer, Integer>>() {
+        //    @Override
+        //    public Tuple5<String, Integer, Integer, Integer, Integer> reduce(Tuple5<String, Integer, Integer, Integer, Integer> t2, Tuple5<String, Integer, Integer, Integer, Integer> t1) throws Exception {
+        //        return new Tuple5<>(t1.f0, t1.f1 + t2.f1, t1.f2 + t2.f2, t1.f3 + t2.f3, t1.f4 + t2.f4);
+        //    }
+        //});
 
+        //Part 2: Calculation of comments for Output
+        DataStream<Tuple5<String, Integer, Integer, Integer, Integer>>  commentsCounts = commentEvents
+                .select("withPostID")
+                .map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Integer>>() {
+            @Override
+            public Tuple5<String, Integer, Integer, Integer, Integer> map(CommentEvent commentEvent) throws Exception {
+                return new Tuple5<>(commentEvent.getReply_to_postId(),0,1,0,0);
+            }
+        })
+        .keyBy(0)
+        .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
+        .reduce(new ReduceFunction<Tuple5<String, Integer, Integer, Integer, Integer>>() {
+            @Override
+            public Tuple5<String, Integer, Integer, Integer, Integer> reduce(Tuple5<String, Integer, Integer, Integer, Integer> t2, Tuple5<String, Integer, Integer, Integer, Integer> t1) throws Exception {
+                return new Tuple5<>(t1.f0, t1.f1 + t2.f1, t1.f2 + t2.f2, t1.f3 + t2.f3, t1.f4 + t2.f4);
+            }
+        });
 
-        // To get a list of active posts, map all replies
-        DataStream<Tuple2<String, Integer>> activePosts =
-                likeEvents.union(replies.map(new MapFunction<CommentEvent, Tuple2<String,
-                        Integer>>() {
-                    @Override
-                    public Tuple2<String, Integer> map(CommentEvent event) {
-                        return new Tuple2<>(
-                                event.getReply_to_postId(),1);
-                    }
+        // Part 3: Calculation for unique user engagement for Output
+        DataStream<Tuple3<String, String, Integer>> userLikesPost = likeEvents.map(new MapFunction<LikeEvent, Tuple3<String, String, Integer>>() {
+            @Override
+            public Tuple3<String, String, Integer> map(LikeEvent likeEvent) throws Exception {
+                return Tuple3.of(likeEvent.getPostId(), likeEvent.getPersonId(),1);
+            }
+        });
 
-                }))
+        DataStream<Tuple3<String, String, Integer>> userRepliesPost = replies.map(new MapFunction<CommentEvent, Tuple3<String, String, Integer>>() {
+            @Override
+            public Tuple3<String, String, Integer> map(CommentEvent commentEvent) throws Exception {
+                return Tuple3.of(commentEvent.getReply_to_postId(), commentEvent.getPersonId(),1);
+            }
+        });
+
+        DataStream<Tuple5<String, Integer,Integer, Integer,Integer>> uniqueUserEngagementCounts = userLikesPost
+                .union(userRepliesPost)
                 .keyBy(0)
-                .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
-                .reduce(new ReduceFunction<Tuple2<String, Integer>>() {
+                .flatMap(new RichFlatMapFunction<Tuple3<String, String, Integer>, Tuple5<String, Integer, Integer, Integer, Integer>>() {
+
+                    private transient ValueState<HashSet<String>> engagedUsers;
+
                     @Override
-                    public Tuple2<String, Integer> reduce(Tuple2<String, Integer> stringIntegerTuple2, Tuple2<String, Integer> t1) throws Exception {
-                        return new Tuple2<String, Integer> (stringIntegerTuple2.f0, stringIntegerTuple2.f1+t1.f1);
+                    public void flatMap(Tuple3<String, String, Integer> stringStringIntegerTuple3, Collector<Tuple5<String, Integer, Integer, Integer, Integer>> collector) throws Exception {
+                            HashSet<String> currentEngagedUsers = engagedUsers.value();
+
+                            if (!currentEngagedUsers.contains(stringStringIntegerTuple3.f1)){
+                                currentEngagedUsers.add(stringStringIntegerTuple3.f1);
+                                engagedUsers.update(currentEngagedUsers);
+
+                                collector.collect(new Tuple5<>(stringStringIntegerTuple3.f0,0,0,1,0));
+                            }
+                    }
+
+                    @Override
+                    public void open(Configuration config) {
+                        ValueStateDescriptor<HashSet<String>>descriptor =
+                                new ValueStateDescriptor<>(
+                                        "engagedUsers", // the state name
+                                        TypeInformation.of(new TypeHint<HashSet<String>>() {}), // type information
+                                        new HashSet<String>()); // default value of the state, if nothing was set
+                        engagedUsers = getRuntimeContext().getState(descriptor);
+                    }
+
+                })
+                .keyBy(0)
+                .window(SlidingEventTimeWindows.of(Time.hours(12), Time.hours(1)))
+                .reduce(new ReduceFunction<Tuple5<String, Integer, Integer, Integer, Integer>>() {
+                    @Override
+                    public Tuple5<String, Integer, Integer, Integer, Integer> reduce(Tuple5<String, Integer, Integer, Integer, Integer> t2, Tuple5<String, Integer, Integer, Integer, Integer> t1) throws Exception {
+                        return new Tuple5<>(t1.f0, t1.f1 + t2.f1, t1.f2 + t2.f2, t1.f3 + t2.f3, t1.f4 + t2.f4);
                     }
                 });
 
 
 
-        activePosts.print();
+
+        repliesCounts.print();
+
+        env.setParallelism(1);
         env.execute("Post Kafka Consumer");
     }
 }
