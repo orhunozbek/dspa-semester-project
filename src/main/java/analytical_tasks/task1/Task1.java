@@ -1,13 +1,12 @@
 package analytical_tasks.task1;
 
 import kafka.EventDeserializer;
+import main.Main;
 import model.CommentEvent;
 import model.LikeEvent;
 import org.apache.commons.collections.map.LRUMap;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.functions.RichReduceFunction;
+import org.apache.commons.configuration2.builder.fluent.Configurations;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
@@ -16,6 +15,7 @@ import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple5;
@@ -31,25 +31,41 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.util.Collector;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
+import preparation.ReorderProcess;
 
 import javax.xml.stream.events.Comment;
 import java.util.*;
 
+import static main.Main.setGlobalConfig;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
 
 public class Task1 {
 
-    //initialize Logger
+    // Initialize Logger
     private static Logger logger = LoggerFactory.getLogger(Task1.class);
 
+    // Configuration
+    private static final String DEFAULT_CONFIG_LOCATION = "config.properties";
+
     public static void main(String[] args) throws Exception {
+
+        // Setup configurations
+        setGlobalConfig(DEFAULT_CONFIG_LOCATION);
+        org.apache.commons.configuration2.Configuration configs = Main.getGlobalConfig();
+
+        assert configs != null;
+        int maxDelay = configs.getInt("maxDelayInSec");
+
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
@@ -72,7 +88,8 @@ public class Task1 {
         // Replies to a comment
 
         SplitStream<CommentEvent> commentEvents = commentEventsSource
-                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(10)) {
+                //.process(new ReorderProcess<CommentEvent>()).setParallelism(1)
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
 
                     @Override
                     public long extractTimestamp(CommentEvent element) {
@@ -220,6 +237,7 @@ public class Task1 {
         // Going to be used for user engagement and active post tracking
         DataStream<LikeEvent> likeEventsSource = env.addSource(
                 new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
+                //.process(new ReorderProcess<LikeEvent>()).setParallelism(1);
 
         DataStream<LikeEvent> likeEvents = likeEventsSource
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
@@ -232,20 +250,52 @@ public class Task1 {
 
 
         //Part 1: Calculation of replies for Output
-        DataStream<Tuple5<String, Integer, Integer, Integer, Integer>>  repliesCounts = replies.map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Integer>>() {
+        DataStream<Iterable<Tuple5<String, Integer, Integer, Integer, Long>>>  repliesCounts = replies.map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Long>>() {
             @Override
-            public Tuple5<String, Integer, Integer, Integer, Integer> map(CommentEvent commentEvent) throws Exception {
-                return new Tuple5<>(commentEvent.getReply_to_postId(),1,0,0,0);
+            public Tuple5<String, Integer, Integer, Integer, Long> map(CommentEvent commentEvent) throws Exception {
+                return new Tuple5<>(commentEvent.getReply_to_postId(),1,0,0,commentEvent.getTimestamp());
             }
+        }
+        ).keyBy(0)
+        .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
+        .process(new ProcessWindowFunction<Tuple5<String, Integer, Integer, Integer, Long>, Iterable<Tuple5<String, Integer, Integer, Integer, Long>>, Tuple, TimeWindow>() {
+
+            MapState<String, Integer> replyCount;
+
+            @Override
+            public void process(Tuple tuple, Context context, Iterable<Tuple5<String, Integer, Integer, Integer, Long>> iterable, Collector<Iterable<Tuple5<String, Integer, Integer, Integer, Long>>> collector) throws Exception {
+                for (Tuple5<String, Integer, Integer, Integer, Long> repEvent: iterable)
+                {
+                    if (replyCount.contains(repEvent.f0)) {
+                        int currentCount = replyCount.get(repEvent.f0);
+                        currentCount += repEvent.f1;
+                        replyCount.put(repEvent.f0, currentCount);
+                    }else{
+                        replyCount.put(repEvent.f0, repEvent.f1);
+                    }
+                }
+
+                ArrayList<Tuple5<String, Integer, Integer, Integer, Long>> output = new ArrayList<>();
+
+                for (Tuple5<String, Integer, Integer, Integer, Long> repEvent: iterable){
+                    output.add(new Tuple5<String, Integer, Integer, Integer, Long>(repEvent.f0,replyCount.get(repEvent.f0),0,0,repEvent.f4));
+                }
+
+                collector.collect(output);
+            }
+
+            @Override
+            public void open(Configuration parameters) throws Exception {
+                MapStateDescriptor<String, Integer> descriptor =
+                        new MapStateDescriptor<String, Integer>(
+                                "count", // the state name
+                                String.class, // type information
+                                Integer.class);
+
+                replyCount = getRuntimeContext().getMapState(descriptor);
+            }
+
         });
-        //.keyBy(0)
-        //.window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
-        //.reduce(new ReduceFunction<Tuple5<String, Integer, Integer, Integer, Integer>>() {
-        //    @Override
-        //    public Tuple5<String, Integer, Integer, Integer, Integer> reduce(Tuple5<String, Integer, Integer, Integer, Integer> t2, Tuple5<String, Integer, Integer, Integer, Integer> t1) throws Exception {
-        //        return new Tuple5<>(t1.f0, t1.f1 + t2.f1, t1.f2 + t2.f2, t1.f3 + t2.f3, t1.f4 + t2.f4);
-        //    }
-        //});
 
         //Part 2: Calculation of comments for Output
         DataStream<Tuple5<String, Integer, Integer, Integer, Integer>>  commentsCounts = commentEvents
@@ -322,9 +372,13 @@ public class Task1 {
 
 
 
-        repliesCounts.print();
 
-        env.setParallelism(1);
+        commentEvents.select("withoutPostID").map(new MapFunction<CommentEvent, String>() {
+            @Override
+            public String map(CommentEvent commentEvent) throws Exception {
+                return commentEvent.getId();
+            }
+        }).print();
         env.execute("Post Kafka Consumer");
     }
 }
