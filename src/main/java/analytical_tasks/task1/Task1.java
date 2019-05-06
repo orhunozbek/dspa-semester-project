@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
+import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
@@ -250,39 +251,43 @@ public class Task1 {
 
 
         //Part 1: Calculation of replies for Output
-        DataStream<Iterable<Tuple5<String, Integer, Integer, Integer, Long>>>  repliesCounts = replies.map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Long>>() {
+        DataStream <Tuple2<Tuple2<Long,Long>, Iterable<Tuple3<String, Integer, Long>>>> repliesCounts = replies.map(new MapFunction<CommentEvent, Tuple3<String, Integer, Long>>() {
             @Override
-            public Tuple5<String, Integer, Integer, Integer, Long> map(CommentEvent commentEvent) throws Exception {
-                return new Tuple5<>(commentEvent.getReply_to_postId(),1,0,0,commentEvent.getTimestamp());
+            public Tuple3<String, Integer, Long> map(CommentEvent commentEvent) throws Exception {
+                return new Tuple3<>(commentEvent.getReply_to_postId(),1, commentEvent.getTimeMilisecond());
             }
         }
-        ).keyBy(0)
-        .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
-        .process(new ProcessWindowFunction<Tuple5<String, Integer, Integer, Integer, Long>, Iterable<Tuple5<String, Integer, Integer, Integer, Long>>, Tuple, TimeWindow>() {
+        )
+        .windowAll(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
+        .process(new ProcessAllWindowFunction<Tuple3<String, Integer,Long>, Tuple2<Tuple2<Long,Long>, Iterable<Tuple3<String, Integer, Long>>>, TimeWindow>() {
 
             MapState<String, Integer> replyCount;
 
             @Override
-            public void process(Tuple tuple, Context context, Iterable<Tuple5<String, Integer, Integer, Integer, Long>> iterable, Collector<Iterable<Tuple5<String, Integer, Integer, Integer, Long>>> collector) throws Exception {
-                for (Tuple5<String, Integer, Integer, Integer, Long> repEvent: iterable)
+            public void process(Context context, Iterable<Tuple3<String, Integer, Long>> iterable, Collector<Tuple2<Tuple2<Long, Long>, Iterable<Tuple3<String, Integer, Long>>>> collector) throws Exception {
+                for (Tuple3<String, Integer, Long> repEvent: iterable)
                 {
                     if (replyCount.contains(repEvent.f0)) {
+
                         int currentCount = replyCount.get(repEvent.f0);
                         currentCount += repEvent.f1;
-                        replyCount.put(repEvent.f0, currentCount);
+                        if(context.window().getEnd() - repEvent.f2 < 30 * 60 * 1000){
+                            replyCount.put(repEvent.f0, currentCount);
+                        }
                     }else{
                         replyCount.put(repEvent.f0, repEvent.f1);
                     }
                 }
 
-                ArrayList<Tuple5<String, Integer, Integer, Integer, Long>> output = new ArrayList<>();
+                ArrayList<Tuple3<String, Integer, Long>> output = new ArrayList<>();
 
-                for (Tuple5<String, Integer, Integer, Integer, Long> repEvent: iterable){
-                    output.add(new Tuple5<String, Integer, Integer, Integer, Long>(repEvent.f0,replyCount.get(repEvent.f0),0,0,repEvent.f4));
+                for (Tuple3<String, Integer, Long> repEvent: iterable){
+                    output.add( new Tuple3<String, Integer, Long>(repEvent.f0,replyCount.get(repEvent.f0),repEvent.f2));
                 }
 
-                collector.collect(output);
+                collector.collect( new Tuple2<>(new Tuple2<Long,Long>(context.window().getStart(),context.window().getEnd()), output));
             }
+
 
             @Override
             public void open(Configuration parameters) throws Exception {
@@ -294,26 +299,60 @@ public class Task1 {
 
                 replyCount = getRuntimeContext().getMapState(descriptor);
             }
-
         });
 
         //Part 2: Calculation of comments for Output
-        DataStream<Tuple5<String, Integer, Integer, Integer, Integer>>  commentsCounts = commentEvents
+        DataStream<Tuple2<Tuple2<Long,Long>, Iterable<Tuple3<String, Integer, Long>>>>  commentsCounts = commentEvents
                 .select("withPostID")
-                .map(new MapFunction<CommentEvent, Tuple5<String, Integer, Integer, Integer, Integer>>() {
-            @Override
-            public Tuple5<String, Integer, Integer, Integer, Integer> map(CommentEvent commentEvent) throws Exception {
-                return new Tuple5<>(commentEvent.getReply_to_postId(),0,1,0,0);
-            }
-        })
-        .keyBy(0)
-        .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
-        .reduce(new ReduceFunction<Tuple5<String, Integer, Integer, Integer, Integer>>() {
-            @Override
-            public Tuple5<String, Integer, Integer, Integer, Integer> reduce(Tuple5<String, Integer, Integer, Integer, Integer> t2, Tuple5<String, Integer, Integer, Integer, Integer> t1) throws Exception {
-                return new Tuple5<>(t1.f0, t1.f1 + t2.f1, t1.f2 + t2.f2, t1.f3 + t2.f3, t1.f4 + t2.f4);
-            }
-        });
+                .map(new MapFunction<CommentEvent, Tuple3<String, Integer, Long>>() {
+                         @Override
+                         public Tuple3<String, Integer, Long> map(CommentEvent commentEvent) throws Exception {
+                             return new Tuple3<>(commentEvent.getReply_to_postId(),1, commentEvent.getTimeMilisecond());
+                         }
+                     }
+                )
+                .windowAll(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
+                .process(new ProcessAllWindowFunction<Tuple3<String, Integer,Long>, Tuple2<Tuple2<Long,Long>, Iterable<Tuple3<String, Integer, Long>>>, TimeWindow>() {
+
+                    MapState<String, Integer> replyCount;
+
+                    @Override
+                    public void process(Context context, Iterable<Tuple3<String, Integer, Long>> iterable, Collector<Tuple2<Tuple2<Long, Long>, Iterable<Tuple3<String, Integer, Long>>>> collector) throws Exception {
+                        for (Tuple3<String, Integer, Long> repEvent: iterable)
+                        {
+                            if (replyCount.contains(repEvent.f0)) {
+
+                                int currentCount = replyCount.get(repEvent.f0);
+                                currentCount += repEvent.f1;
+                                if(context.window().getEnd() - repEvent.f2 < 30 * 60 * 1000){
+                                    replyCount.put(repEvent.f0, currentCount);
+                                }
+                            }else{
+                                replyCount.put(repEvent.f0, repEvent.f1);
+                            }
+                        }
+
+                        ArrayList<Tuple3<String, Integer, Long>> output = new ArrayList<>();
+
+                        for (Tuple3<String, Integer, Long> repEvent: iterable){
+                            output.add( new Tuple3<String, Integer, Long>(repEvent.f0,replyCount.get(repEvent.f0),repEvent.f2));
+                        }
+
+                        collector.collect( new Tuple2<>(new Tuple2<Long,Long>(context.window().getStart(),context.window().getEnd()), output));
+                    }
+
+
+                    @Override
+                    public void open(Configuration parameters) throws Exception {
+                        MapStateDescriptor<String, Integer> descriptor =
+                                new MapStateDescriptor<String, Integer>(
+                                        "count", // the state name
+                                        String.class, // type information
+                                        Integer.class);
+
+                        replyCount = getRuntimeContext().getMapState(descriptor);
+                    }
+                });
 
         // Part 3: Calculation for unique user engagement for Output
         DataStream<Tuple3<String, String, Integer>> userLikesPost = likeEvents.map(new MapFunction<LikeEvent, Tuple3<String, String, Integer>>() {
@@ -373,12 +412,7 @@ public class Task1 {
 
 
 
-        commentEvents.select("withoutPostID").map(new MapFunction<CommentEvent, String>() {
-            @Override
-            public String map(CommentEvent commentEvent) throws Exception {
-                return commentEvent.getId();
-            }
-        }).print();
+        repliesCounts.print();
         env.execute("Post Kafka Consumer");
     }
 }
