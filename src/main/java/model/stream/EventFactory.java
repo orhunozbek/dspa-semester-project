@@ -1,4 +1,4 @@
-package model;
+package model.stream;
 
 import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;

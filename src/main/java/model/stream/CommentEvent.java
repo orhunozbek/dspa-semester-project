@@ -1,4 +1,4 @@
-package model;
+package model.stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.commons.csv.CSVRecord;

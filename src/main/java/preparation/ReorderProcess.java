@@ -1,7 +1,7 @@
 package preparation;
 
 import main.Main;
-import model.Event;
+import model.stream.Event;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;

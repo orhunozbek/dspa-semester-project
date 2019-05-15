@@ -26,6 +26,10 @@ public class StreamDataPreparation {
         if (!postEventStreamOrigFile.exists()) {
             return false;
         }
+        File forumHasMemberOrigFile = new File(dataDirectory + "/tables/forum_hasMember_person.csv");
+        if (!forumHasMemberOrigFile.exists()) {
+            return false;
+        }
 
         String workingDirectory = configuration.getString("workingDirectory");
         File workingDirectoryFile = new File(workingDirectory);
@@ -58,10 +62,26 @@ public class StreamDataPreparation {
             e.printStackTrace();
         }
 
+        File tableDirectory = new File(workingDirectory + "/tables");
+        tableDirectory.mkdirs();
+
+        File forumHasMemberFile = new File(workingDirectory + "/tables/forum_hasMember_person.csv");
+        try {
+            forumHasMemberFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Dynamic data
+
         Enricher enricher = new Enricher();
         enricher.enrichCommentEventStream(commentEventStreamOrigFile, commentEventStreamFile);
         enricher.enrichLikesEventStream(likesEventStreamOrigFile, likesEventStreamFile);
         enricher.enrichPostEventStream(postEventStreamOrigFile, postEventStreamFile);
+
+        // Static data
+        enricher.enrichForumHasMember(forumHasMemberOrigFile, forumHasMemberFile);
+
 
         return true;
     }

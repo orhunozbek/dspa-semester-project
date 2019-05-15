@@ -178,4 +178,42 @@ public class Enricher {
             }
         }
     }
+
+    public void enrichForumHasMember(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath());
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Forum.id", "Person.id", "joinDate")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Forum.id", "Person.id", "joinDate");
+            for(CSVRecord record : csvParser) {
+                String forumId = record.get("Forum.id");
+                String personId = record.get("Person.id");
+                String joinDate = record.get("joinDate");
+
+                csvPrinter.printRecord(forumId, personId, joinDate);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if(reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 }
