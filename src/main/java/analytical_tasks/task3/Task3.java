@@ -1,6 +1,7 @@
 package analytical_tasks.task3;
 
 import kafka.EventDeserializer;
+import kafka.TupleSerializationSchema;
 import main.Main;
 import model.CommentEvent;
 import model.LikeEvent;
@@ -19,6 +20,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -127,8 +129,15 @@ public class Task3 {
 
 
         outlierDetection.print();
-        env.execute("Post Kafka Consumer");
 
+        FlinkKafkaProducer011<Tuple5<String, Integer, Double, Double, Long>> fradulentUserDetectionProducer =
+                new FlinkKafkaProducer011<>(
+                kafkaBrokerList, // broker list
+                "fradulentUserDetection",
+                new TupleSerializationSchema<>());
+
+        outlierDetection.addSink(fradulentUserDetectionProducer);
+        env.execute("Post Kafka Consumer");
 
     }
 
