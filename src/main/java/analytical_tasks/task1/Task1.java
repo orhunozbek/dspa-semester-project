@@ -14,6 +14,7 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.*;
 import org.apache.flink.configuration.Configuration;
@@ -48,6 +49,7 @@ public class Task1 {
     private static Logger logger = LoggerFactory.getLogger(Task1.class);
 
     private static final String DEFAULT_CONFIG_LOCATION = "config.properties";
+    private static final String kafkaBrokerList = "localhost:9092";
 
     public static void main(String[] args) throws Exception {
 
@@ -64,7 +66,7 @@ public class Task1 {
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         Properties kafkaProps = new Properties();
-        kafkaProps.setProperty("bootstrap.servers", "localhost:9092");
+        kafkaProps.setProperty("bootstrap.servers", kafkaBrokerList);
         kafkaProps.setProperty(AUTO_OFFSET_RESET_CONFIG, "earliest");
         kafkaProps.setProperty(ENABLE_AUTO_COMMIT_CONFIG, "false");
 
@@ -73,8 +75,24 @@ public class Task1 {
         DataStream<CommentEvent> commentEventsSource = env.addSource(
                 new FlinkKafkaConsumer011<>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
 
+        // DataStream for likes
+        // Going to be used for user engagement and active post tracking
+        DataStream<LikeEvent> likeEventsSource = env.addSource(
+                new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
+
+
+        DataStream<LikeEvent> likeEvents = likeEventsSource
+                //.process(new ReorderProcess<LikeEvent>()).setParallelism(1)
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
+
+                    @Override
+                    public long extractTimestamp(LikeEvent element) {
+                        return element.getTimeMilisecond();
+                    }
+                });
+
         SplitStream<CommentEvent> commentEvents = commentEventsSource
-                .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
+                //.process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
 
                     @Override
@@ -82,29 +100,29 @@ public class Task1 {
                         return element.getTimeMilisecond();
                     }
                 })
-                .split(new OutputSelector<CommentEvent>() {
-                    @Override
-                    public Iterable<String> select(CommentEvent commentEvent) {
-                        List<String> output = new ArrayList<String>();
-                        if (commentEvent.getReply_to_postId().equals("")) {
-                            output.add("withoutPostID");
-                        }
-                        else {
-                            output.add("withPostID");
-                        }
-                        return output;
+                .split((OutputSelector<CommentEvent>) commentEvent -> {
+                    List<String> output = new ArrayList<String>();
+                    if (commentEvent.getReply_to_postId().equals("")) {
+                        output.add("withoutPostID");
                     }
+                    else {
+                        output.add("withPostID");
+                    }
+                    return output;
                 });
 
         // Replies to a comment
         DataStream<CommentEvent> commentEventsWithoutPostId = commentEvents.select("withoutPostID");
 
-        // Replies to a post, partitioned by Key
-        KeyedStream<CommentEvent, String> postPartitionedCommentEvents = commentEvents.select("withPostID").keyBy(new KeySelector<CommentEvent, String>() {
-            public String getKey(CommentEvent commentEvent) { return commentEvent.getReply_to_postId(); }
-        });
+        // Replies to a post, partitioned by PostID
+        KeyedStream<CommentEvent, String> postPartitionedCommentEvents = commentEvents.select("withPostID")
+                .keyBy((KeySelector<CommentEvent, String>) CommentEvent::getReply_to_postId);
 
-        // Broadcast state for CommentEvents without postId.
+
+        // Broadcast state for CommentEvents without postId, in the end, all CommentEvents withoutPostId will be mapped
+        // to their parent postId.
+        // This pattern is adapted from Flink documentation.
+        // https://ci.apache.org/projects/flink/flink-docs-release-1.8/dev/stream/state/broadcast_state.html
         MapStateDescriptor<String, CommentEvent> commentBroadcastStateDescriptor = new MapStateDescriptor<>(
                 "CommentsBroadcastState",
                 BasicTypeInfo.STRING_TYPE_INFO,
@@ -192,6 +210,7 @@ public class Task1 {
                                     }
 
                                     else{
+
                                         ArrayList<CommentEvent> arr =
                                                 (ArrayList<CommentEvent>) cache.get(commentEvent.getReply_to_commentId());
 
@@ -205,12 +224,8 @@ public class Task1 {
 
 
         DataStream <Tuple4<Long, Long, String, Integer>> repliesCounts = replies
-                .map(new MapFunction<CommentEvent, Tuple2<String,Integer >>() {
-                    @Override
-                    public Tuple2<String, Integer> map(CommentEvent commentEvent) throws Exception {
-                        return new Tuple2<>(commentEvent.getReply_to_postId(),1);
-                    }
-                })
+                .map((MapFunction<CommentEvent, Tuple2<String, Integer>>) commentEvent -> new Tuple2<>(commentEvent.getReply_to_postId(),1))
+                .returns(Types.TUPLE(Types.STRING, Types.INT))
                 .keyBy(0)
                 .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
                 .process(new ProcessWindowFunction<Tuple2<String, Integer>, Tuple4<Long, Long, String, Integer>, Tuple, TimeWindow>() {
@@ -231,12 +246,8 @@ public class Task1 {
                 });
 
         DataStream <Tuple4<Long, Long, String, Integer>> commentsCounts = commentEvents.select("withPostID")
-                .map(new MapFunction<CommentEvent, Tuple2<String,Integer >>() {
-                    @Override
-                    public Tuple2<String, Integer> map(CommentEvent commentEvent) throws Exception {
-                        return new Tuple2<>(commentEvent.getReply_to_postId(),1);
-                    }
-                })
+                .map((MapFunction<CommentEvent, Tuple2<String, Integer>>) commentEvent -> new Tuple2<String, Integer>(commentEvent.getReply_to_postId(),1))
+                .returns(Types.TUPLE(Types.STRING, Types.INT))
                 .keyBy(0)
                 .window(SlidingEventTimeWindows.of(Time.hours(12), Time.minutes(30)))
                 .process(new ProcessWindowFunction<Tuple2<String, Integer>, Tuple4<Long, Long, String, Integer>, Tuple, TimeWindow>() {
@@ -256,37 +267,22 @@ public class Task1 {
                     }
                 });
 
-        // DataStream for likes
-        // Going to be used for user engagement and active post tracking
-        DataStream<LikeEvent> likeEventsSource = env.addSource(
-                new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
 
 
-        DataStream<LikeEvent> likeEvents = likeEventsSource
-                .process(new ReorderProcess<LikeEvent>()).setParallelism(1)
-                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
+        // Part 3: Calculation for Unique User Engagement for Output
 
-                    @Override
-                    public long extractTimestamp(LikeEvent element) {
-                        return element.getTimeMilisecond();
-                    }
-                });
+        // Map LikeEvents and CommentEvents into a common representation.
+        DataStream<Tuple3<String, String, Integer>> userLikesPost = likeEvents
+                .map((MapFunction<LikeEvent, Tuple3<String, String, Integer>>) likeEvent
+                        -> Tuple3.of(likeEvent.getPostId(), likeEvent.getPersonId(),1))
+                .returns(Types.TUPLE(Types.STRING, Types.STRING, Types.INT));
 
-        // Part 3: Calculation for unique user engagement for Output
-        DataStream<Tuple3<String, String, Integer>> userLikesPost = likeEvents.map(new MapFunction<LikeEvent, Tuple3<String, String, Integer>>() {
-            @Override
-            public Tuple3<String, String, Integer> map(LikeEvent likeEvent) throws Exception {
-                return Tuple3.of(likeEvent.getPostId(), likeEvent.getPersonId(),1);
-            }
-        });
+        DataStream<Tuple3<String, String, Integer>> userRepliesPost = replies
+                .map((MapFunction<CommentEvent, Tuple3<String, String, Integer>>) commentEvent
+                        -> Tuple3.of(commentEvent.getReply_to_postId(), commentEvent.getPersonId(),1))
+                .returns(Types.TUPLE(Types.STRING, Types.STRING, Types.INT));
 
-        DataStream<Tuple3<String, String, Integer>> userRepliesPost = replies.map(new MapFunction<CommentEvent, Tuple3<String, String, Integer>>() {
-            @Override
-            public Tuple3<String, String, Integer> map(CommentEvent commentEvent) throws Exception {
-                return Tuple3.of(commentEvent.getReply_to_postId(), commentEvent.getPersonId(),1);
-            }
-        });
-
+        // Create a union between replies and likes to calculate unique user engagement per window
         DataStream <Tuple4<Long, Long, String, Integer>>  uniqueUserEngagementCounts = userLikesPost
                 .union(userRepliesPost)
                 .keyBy(0)
@@ -337,24 +333,23 @@ public class Task1 {
 
 
         FlinkKafkaProducer011<Tuple4<Long, Long, String, Integer>> userEngagementProducer = new FlinkKafkaProducer011<>(
-                "localhost:9092", // broker list
+                kafkaBrokerList, // broker list
                 "userEngagementCounts",
-                new TupleSerializationSchema());
-
-        uniqueUserEngagementCounts.addSink(userEngagementProducer);
+                new TupleSerializationSchema<>());
 
         FlinkKafkaProducer011<Tuple4<Long, Long, String, Integer>> commentsProducer = new FlinkKafkaProducer011<>(
-                "localhost:9092", // broker list
+                kafkaBrokerList, // broker list
                 "commentsCounts",
-                new TupleSerializationSchema());
-
-        commentsCounts.addSink(commentsProducer);
+                new TupleSerializationSchema<>());
 
         FlinkKafkaProducer011<Tuple4<Long, Long, String, Integer>> repliesProducer = new FlinkKafkaProducer011<>(
-                "localhost:9092", // broker list
+                kafkaBrokerList, // broker list
                 "repliesCounts",
-                new TupleSerializationSchema());
+                new TupleSerializationSchema<>());
 
+
+        uniqueUserEngagementCounts.addSink(userEngagementProducer);
+        commentsCounts.addSink(commentsProducer);
         repliesCounts.addSink(repliesProducer);
 
         uniqueUserEngagementCounts.print();
