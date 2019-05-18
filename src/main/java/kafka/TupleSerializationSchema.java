@@ -1,12 +1,12 @@
 package kafka;
 
 import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple4;
 
-public class TupleSerializationSchema implements SerializationSchema<Tuple4<Long, Long, String, Integer>> {
-
+public class TupleSerializationSchema<T extends Tuple> implements SerializationSchema<T> {
     @Override
-    public byte[] serialize(Tuple4<Long, Long, String, Integer> longLongStringIntegerTuple4) {
-        return longLongStringIntegerTuple4.toString().getBytes();
+    public byte[] serialize(T t) {
+        return t.toString().getBytes();
     }
 }
