@@ -2,9 +2,6 @@ package kafka;
 
 import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.java.tuple.Tuple4;
-import org.apache.kafka.common.serialization.Serializer;
-
-import java.util.Map;
 
 public class TupleSerializationSchema implements SerializationSchema<Tuple4<Long, Long, String, Integer>> {
 
