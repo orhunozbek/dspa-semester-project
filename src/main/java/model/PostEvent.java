@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class PostEvent implements Event {
+public class PostEvent extends Event {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;

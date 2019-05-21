@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class CommentEvent implements Event {
+public class CommentEvent extends Event {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -109,6 +109,19 @@ public class CommentEvent implements Event {
         this.reply_to_postId = record.get("reply_to_postId");
         this.reply_to_commentId = record.get("reply_to_commentId");
         this.placeId = record.get("placeId");
+    }
+
+    public CommentEvent(CommentEvent event, String postId){
+        this.timeMilisecond = event.timeMilisecond;
+        this.id = event.id;
+        this.personId = event.personId;
+        this.creationDate = event.creationDate;
+        this.locationIP = event.locationIP;
+        this.browserUsed = event.browserUsed;
+        this.content = event.content;
+        this.reply_to_postId = postId;
+        this.reply_to_commentId = event.reply_to_commentId;
+        this.placeId = event.placeId;
     }
 
     @Override

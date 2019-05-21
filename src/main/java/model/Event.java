@@ -1,8 +1,14 @@
 package model;
 
-public interface Event {
+import org.jetbrains.annotations.NotNull;
 
-    String getTopicName();
+public abstract class Event implements Comparable<Event>{
 
-    long getTimestamp();
+    abstract public String getTopicName();
+    abstract public long getTimestamp();
+
+    @Override
+    public int compareTo(@NotNull Event o) {
+        return (int)(this.getTimestamp() - o.getTimestamp());
+    }
 }
