@@ -168,7 +168,7 @@ public class Task1 {
         FlinkKafkaProducer011<Tuple2<Long, Iterable<Tuple3<String, String, Integer>>>> windowedResultStreamProducer =
                 new FlinkKafkaProducer011<>(
                         kafkaBrokerList, // broker list
-                        "fradulentUserDetection",
+                        "activityCounter",
                         new TupleSerializationSchema<>());
 
         windowedResultStream.addSink(windowedResultStreamProducer);
