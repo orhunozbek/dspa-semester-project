@@ -50,12 +50,7 @@ public class ReaderUtils {
             return null;
         }
         String dataDirectory = configuration.getString(dirName.toString());
-        File eventStreamFile = new File(dataDirectory + topicName.toString());
-        if (!eventStreamFile.exists()) {
-            return null;
-        }
-
-        return eventStreamFile;
+        return new File(dataDirectory + topicName.toString());
     }
 
     public static String[] getHeaderFor(Directory dirName, Topic topic) {

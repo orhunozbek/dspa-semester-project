@@ -29,7 +29,7 @@ public class ImportFileTest {
         assert(streamDataPreparation.start());
         String directory = configuration.getString("workingDirectory");
         assert((new File(directory + "/streams/post_event_stream.csv").exists()));
-        assert(streamDataPreparation.cleanup());
+        ///assert(streamDataPreparation.cleanup());
         assert(!(new File(directory + "/streams/post_event_stream.csv").exists()));
     }
 
