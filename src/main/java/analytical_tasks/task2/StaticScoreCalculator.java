@@ -21,6 +21,7 @@ public class StaticScoreCalculator {
     private Set<String>[] selectedUserModeratorForums;
     private int[] birthdays;
     private String[] browsers;
+    private Set<String>[] interests;
 
     public StaticScoreCalculator() {
         scoreList = new ScoreHandler[10];
@@ -52,6 +53,7 @@ public class StaticScoreCalculator {
         selectedUserModeratorForums = new Set[10];
         birthdays = new int[10];
         browsers = new String[10];
+        interests = new Set[10];
     }
 
     public ScoreHandler[] readStaticScores() throws Exception {
@@ -64,6 +66,55 @@ public class StaticScoreCalculator {
 
         forumMemberModerater(workingDirectory);
 
+        userSimilarities(configuration, workingDirectory);
+
+        File personHasInterestTag = new File(workingDirectory + "/tables/person_hasInterest_tag.csv");
+        if (!personHasInterestTag.exists()) {
+            throw new FileNotFoundException("Person File not found");
+        }
+
+        Reader reader = Files.newBufferedReader(personHasInterestTag.toPath());
+        CSVFormat inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Person.id", "Tag.id")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        CSVParser csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String personId = record.get("Person.id");
+            String tagId = record.get("Tag.id");
+
+            int index = getIndexFromSelectedUserId(personId);
+            if (index != -1) {
+                if(interests[index] == null) {
+                    interests[index] = new HashSet<>();
+                }
+                interests[index].add(tagId);
+            }
+        }
+        reader.close();
+
+        reader = Files.newBufferedReader(personHasInterestTag.toPath());
+        inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Person.id", "Tag.id")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String personId = record.get("Person.id");
+            String tagId = record.get("Tag.id");
+
+            for(int i = 0; i < 10; i++) {
+                if(interests[i].contains(tagId)) {
+                    scoreList[i].updateScore(personId, SAME_INTEREST_TAG);
+                }
+            }
+        }
+        reader.close();
+
+        return scoreList;
+    }
+
+    private void userSimilarities(Configuration configuration, String workingDirectory) throws IOException {
         int sameAgeRange = configuration.getInt("sameAgeRange");
         File person = new File(workingDirectory + "/tables/person.csv");
         if (!person.exists()) {
@@ -113,8 +164,6 @@ public class StaticScoreCalculator {
             }
         }
         reader.close();
-
-        return scoreList;
     }
 
     private void forumMemberModerater(String workingDirectory) throws IOException {

@@ -38,6 +38,10 @@ public class StreamDataPreparation {
         if (!personOrigFile.exists()) {
             return false;
         }
+        File personHasInterestOrigFile = new File(dataDirectory + "/tables/person_hasInterest_tag.csv");
+        if(!personHasInterestOrigFile.exists()) {
+            return false;
+        }
 
         String workingDirectory = configuration.getString("workingDirectory");
         File workingDirectoryFile = new File(workingDirectory);
@@ -94,6 +98,13 @@ public class StreamDataPreparation {
             e.printStackTrace();
         }
 
+        File personHasInterestFile = new File(workingDirectory + "/tables/person_hasInterest_tag.csv");
+        try {
+            personHasInterestFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         // Dynamic data
 
         Enricher enricher = new Enricher();
@@ -105,7 +116,7 @@ public class StreamDataPreparation {
         enricher.enrichForumHasMember(forumHasMemberOrigFile, forumHasMemberFile);
         enricher.enrichForumHasModerator(forumHasModeratorOrigFile, forumHasModeratorFile);
         enricher.enrichPerson(personOrigFile, personFile);
-
+        enricher.enrichPersonHasInterestTag(personHasInterestOrigFile, personHasInterestFile);
 
         return true;
     }
