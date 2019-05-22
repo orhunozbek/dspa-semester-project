@@ -1,6 +1,6 @@
 package analytical_tasks.task2;
 
-import model.LikeEvent;
+import model.PostEvent;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -11,41 +11,41 @@ import java.util.HashSet;
 import java.util.function.Consumer;
 
 import static analytical_tasks.task2.FixedCategory.ACTIVE;
-import static analytical_tasks.task2.FixedCategory.LIKED_THE_SAME;
+import static analytical_tasks.task2.FixedCategory.SAME_FORUM_POST;
 
-public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEvent, ScoreHandler[],String,TimeWindow> {
+public class PostToSameForumWindowFunction extends ProcessWindowFunction<PostEvent, ScoreHandler[],String, TimeWindow> {
 
     private String[] ids;
-    private HashSet[] likedPosts;
-    private MapState<String, Integer> sameLikes;
-    public SameLikeProcessWindowFunction(String[] ids) {
+    private HashSet[] postedForums;
+    private MapState<String, Integer> sameForumPosts;
+    public PostToSameForumWindowFunction(String[] ids) {
         this.ids = ids;
-        likedPosts = new HashSet[10];
+        postedForums = new HashSet[10];
         for(int i = 0; i < 10; i++) {
-            likedPosts[i] = new HashSet();
+            postedForums[i] = new HashSet();
         }
     }
 
     @Override
-    public void process(String postId, Context context, Iterable<LikeEvent> iterable, Collector<ScoreHandler[]> collector) throws Exception {
+    public void process(String s, Context context, Iterable<PostEvent> iterable, Collector<ScoreHandler[]> collector) throws Exception {
         ScoreHandler[] scoreHandlers = new ScoreHandler[10];
         for(int i = 0; i < 10; i++) {
             scoreHandlers[i] = new ScoreHandler(ids[i]);
         }
-        sameLikes = context.windowState().getMapState(new MapStateDescriptor("likes", String.class, Integer.class));
-        iterable.forEach(new Consumer<LikeEvent>() {
+        sameForumPosts = context.windowState().getMapState(new MapStateDescriptor<String, Integer>("posts", String.class, Integer.class));
+        iterable.forEach(new Consumer<PostEvent>() {
             @Override
-            public void accept(LikeEvent likeEvent) {
+            public void accept(PostEvent postEvent) {
                 for(int i = 0; i < 10; i++) {
-                    if(likeEvent.getPersonId().equals(ids[i])) {
-                        likedPosts[i].add(likeEvent.getPostId());
+                    if(postEvent.getPersonId().equals(ids[i])) {
+                        postedForums[i].add(postEvent.getId());
                         break;
                     }
 
-                    if(likedPosts[i].contains(likeEvent.getPostId())) {
+                    if(postedForums[i].contains(postEvent.getId())) {
                         Integer value;
                         try {
-                             value = sameLikes.get(likeEvent.getPersonId());
+                            value = sameForumPosts.get(postEvent.getPersonId());
                         } catch (Exception e) {
                             e.printStackTrace();
                             continue;
@@ -56,24 +56,23 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
                             value = value + 1;
                         }
                         try {
-                            sameLikes.put(likeEvent.getPersonId(), value);
+                            sameForumPosts.put(postEvent.getPersonId(), value);
                         } catch (Exception e) {
                             e.printStackTrace();
                             continue;
                         }
-                        scoreHandlers[i].updateScore(likeEvent.getPersonId(), LIKED_THE_SAME);
+                        scoreHandlers[i].updateScore(postEvent.getPersonId(), SAME_FORUM_POST);
                     }
                 }
-                for(int i = 0; i < 10; i++ ){
-                    scoreHandlers[i].updateScore(likeEvent.getPersonId(), ACTIVE);
+                for(int i = 0; i < 10; i++) {
+                    scoreHandlers[i].updateScore(postEvent.getPersonId(), ACTIVE);
                 }
-                collector.collect(scoreHandlers);
             }
         });
     }
 
     @Override
     public void clear(Context context) throws Exception {
-        sameLikes.clear();
+        sameForumPosts.clear();
     }
 }

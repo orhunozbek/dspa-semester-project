@@ -14,6 +14,7 @@ public enum FixedCategory {
     SAME_WORK_PLACE("sameWorkPlace"),
     SAME_WORK_PLACE_AND_YEAR("sameWorkPlaceAndYear"),
     LIKED_THE_SAME("likedTheSame"),
+    SAME_FORUM_POST("postedSameForum"),
     ACTIVE("active");
 
 

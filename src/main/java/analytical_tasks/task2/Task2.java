@@ -3,8 +3,10 @@ package analytical_tasks.task2;
 import kafka.EventDeserializer;
 import main.Main;
 import model.LikeEvent;
+import model.PostEvent;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -68,12 +70,11 @@ public class Task2 {
         DataStream<LikeEvent> likeEventDataStream = env.addSource(
                 new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
 
-        likeEventDataStream
-                .process(new ReorderProcess<LikeEvent>()).setParallelism(1)
+        DataStream<ScoreHandler[]> likeEventProcessedStream = likeEventDataStream
+                .process(new ReorderProcess<>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
                     @Override
                     public long extractTimestamp(LikeEvent likeEvent) {
-                        System.out.println(likeEvent.getTimeMilisecond());
                         return likeEvent.getTimeMilisecond();
                     }
                 })
@@ -84,22 +85,52 @@ public class Task2 {
                     }
                 })
                 .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
-                .process(new SameLikeProcessWindowFunction(selectedUserIdArray))
+                .process(new SameLikeProcessWindowFunction(selectedUserIdArray));
+
+        //Source for same forum post
+        DataStream<PostEvent> postEventDataStream = env.addSource(
+                new FlinkKafkaConsumer011<>("posts", new EventDeserializer<>(PostEvent.class), kafkaProps));
+
+        DataStream<ScoreHandler[]> postEventProcessedStream = postEventDataStream
+                .process(new ReorderProcess<>()).setParallelism(1)
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<PostEvent>(Time.seconds(10)) {
+                    @Override
+                    public long extractTimestamp(PostEvent postEvent) {
+                        return postEvent.getTimeMilisecond();
+                    }
+                })
+                .keyBy(new KeySelector<PostEvent, String>() {
+                    @Override
+                    public String getKey(PostEvent postEvent) throws Exception {
+                        return postEvent.getId();
+                    }
+                })
+                .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
+                .process(new PostToSameForumWindowFunction(selectedUserIdArray));
+
+
+        likeEventProcessedStream.union(postEventProcessedStream)
+                .windowAll(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
+                .reduce(new ReduceFunction<ScoreHandler[]>() {
+                    @Override
+                    public ScoreHandler[] reduce(ScoreHandler[] scoreHandlerArray1, ScoreHandler[] scoreHandlerArray2) throws Exception {
+                        for(int i = 0; i < 10; i++) {
+                            scoreHandlerArray1[i].merge(scoreHandlerArray2[i]);
+                        }
+                        return scoreHandlerArray1;
+                    }
+                }).setParallelism(1)
                 .map(new MapFunction<ScoreHandler[], LinkedList<String>[]>() {
                     @Override
                     public LinkedList<String>[] map(ScoreHandler[] scoreHandlers) throws Exception {
                         LinkedList<String>[] friendProposals = new LinkedList[10];
                         for(int i = 0; i < 10; i++) {
-                            friendProposals[i] = new LinkedList<>();
-
                             staticScores[i].merge(scoreHandlers[i]);
                             friendProposals[i] = staticScores[i].returnTop5();
                         }
                         return friendProposals;
                     }
-                });
-
-
+                }).setParallelism(1);
 
 
         env.execute();
