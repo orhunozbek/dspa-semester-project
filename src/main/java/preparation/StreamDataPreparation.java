@@ -30,6 +30,14 @@ public class StreamDataPreparation {
         if (!forumHasMemberOrigFile.exists()) {
             return false;
         }
+        File forumHasModeratorOrigFile = new File(dataDirectory + "/tables/forum_hasModerator_person.csv");
+        if (!forumHasModeratorOrigFile.exists()) {
+            return false;
+        }
+        File personOrigFile = new File(dataDirectory + "/tables/person.csv");
+        if (!personOrigFile.exists()) {
+            return false;
+        }
 
         String workingDirectory = configuration.getString("workingDirectory");
         File workingDirectoryFile = new File(workingDirectory);
@@ -72,6 +80,20 @@ public class StreamDataPreparation {
             e.printStackTrace();
         }
 
+        File forumHasModeratorFile = new File(workingDirectory + "/tables/forum_hasModerator_person.csv");
+        try {
+            forumHasModeratorFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        File personFile = new File(workingDirectory + "/tables/person.csv");
+        try {
+            personFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         // Dynamic data
 
         Enricher enricher = new Enricher();
@@ -81,6 +103,8 @@ public class StreamDataPreparation {
 
         // Static data
         enricher.enrichForumHasMember(forumHasMemberOrigFile, forumHasMemberFile);
+        enricher.enrichForumHasModerator(forumHasModeratorOrigFile, forumHasModeratorFile);
+        enricher.enrichPerson(personOrigFile, personFile);
 
 
         return true;

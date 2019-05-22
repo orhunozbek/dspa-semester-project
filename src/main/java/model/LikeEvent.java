@@ -1,4 +1,4 @@
-package model.stream;
+package model;
 
 import org.apache.commons.csv.CSVRecord;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;

@@ -2,11 +2,10 @@ package analytical_tasks.task2;
 
 import kafka.EventDeserializer;
 import main.Main;
-import model.stream.LikeEvent;
+import model.LikeEvent;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -16,7 +15,6 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import preparation.ReorderProcess;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Properties;
 

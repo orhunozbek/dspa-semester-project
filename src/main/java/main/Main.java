@@ -15,7 +15,7 @@ import static preparation.ReaderUtils.Topic.*;
 
 public class Main {
     public static final String DEFAULT_CONFIG_LOCATION = "config.properties";
-    private static final boolean WRITE_TO_KAFKA = false;
+    private static final boolean WRITE_TO_KAFKA = true;
 
     private static Configurations configs;
     private static String location = "";

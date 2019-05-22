@@ -1,7 +1,7 @@
 package kafka;
 
-import model.stream.Event;
-import model.stream.EventFactory;
+import model.Event;
+import model.EventFactory;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;

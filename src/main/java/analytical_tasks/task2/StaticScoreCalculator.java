@@ -5,10 +5,8 @@ import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-
 import java.io.*;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,6 +16,8 @@ public class StaticScoreCalculator {
     private String[] selectedUserIdArray;
 
     private Set<String>[] selectedUserForums;
+    private Set<String>[] selectedUserModeratorForums;
+    private int[] birthdays;
 
     public StaticScoreCalculator() {
         scoreList = new ScoreHandler[10];
@@ -46,19 +46,75 @@ public class StaticScoreCalculator {
         selectedUserIdArray[9] = configuration.getString("friendId9");
 
         selectedUserForums = new Set[10];
+        selectedUserModeratorForums = new Set[10];
+        birthdays = new int[10];
     }
 
     public ScoreHandler[] readStaticScores() throws Exception {
-        // Same Forum
         Configuration configuration = Main.getGlobalConfig();
         String workingDirectory = configuration.getString("workingDirectory");
         File workingDirectoryFile = new File(workingDirectory);
         if (!workingDirectoryFile.exists()) {
             throw new FileNotFoundException("Working Directory not Found");
         }
+
+        forumMemberModerater(workingDirectory);
+
+        int sameAgeRange = configuration.getInt("sameAgeRange");
+        File person = new File(workingDirectory + "/tables/person.csv");
+        if (!person.exists()) {
+            throw new FileNotFoundException("Person File not found");
+        }
+
+        Reader reader = Files.newBufferedReader(person.toPath());
+        CSVFormat inputFormat = CSVFormat.newFormat('|')
+                .withHeader("id", "firstName", "lastName", "gender", "birthday",
+                        "creationDate", "locationIP", "browserUsed")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        CSVParser csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String id = record.get("id");
+            String birthday = record.get("birthday");
+
+            int index = getIndexFromSelectedUserId(id);
+            if (index != -1) {
+                birthdays[index] = extractBirthdayYear(birthday);
+            }
+        }
+        reader.close();
+
+        reader = Files.newBufferedReader(person.toPath());
+        inputFormat = CSVFormat.newFormat('|')
+                .withHeader("id", "firstName", "lastName", "gender", "birthday",
+                        "creationDate", "locationIP", "browserUsed")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String id = record.get("id");
+            String birthday = record.get("birthday");
+
+            for(int i = 0; i < 10; i++) {
+                if(Math.abs(extractBirthdayYear(birthday) - birthdays[i]) <= sameAgeRange) {
+                    scoreList[i].updateScore(id, FixedCategory.SAME_AGE);
+                }
+            }
+        }
+        reader.close();
+
+        return scoreList;
+    }
+
+    private void forumMemberModerater(String workingDirectory) throws IOException {
+        // Same Forum Member/Moderator
         File forumHasMember = new File(workingDirectory + "/tables/forum_hasMember_person.csv");
         if (!forumHasMember.exists()) {
             throw new FileNotFoundException("Forum Has Member File not Found");
+        }
+        File forumHasModerator = new File(workingDirectory + "/tables/forum_hasModerator_person.csv");
+        if (!forumHasModerator.exists()) {
+            throw new FileNotFoundException("Forum Has Moderator File not Found");
         }
 
         Reader reader = Files.newBufferedReader(forumHasMember.toPath());
@@ -79,8 +135,28 @@ public class StaticScoreCalculator {
                 selectedUserForums[index].add(forumId);
             }
         }
-
         reader.close();
+
+        reader = Files.newBufferedReader(forumHasModerator.toPath());
+        inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Forum.id", "Person.id")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String forumId = record.get("Forum.id");
+            String personId = record.get("Person.id");
+
+            int index = getIndexFromSelectedUserId(personId);
+            if (index != -1) {
+                if(selectedUserModeratorForums[index] == null) {
+                    selectedUserModeratorForums[index] = new HashSet<>();
+                }
+                selectedUserModeratorForums[index].add(forumId);
+            }
+        }
+        reader.close();
+
         reader = Files.newBufferedReader(forumHasMember.toPath());
         csvParser = new CSVParser(reader, inputFormat);
         for(CSVRecord record : csvParser) {
@@ -92,12 +168,33 @@ public class StaticScoreCalculator {
                     scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER);
                 }
             }
+
+            for(int i = 0; i < 10; i++) {
+                if(selectedUserModeratorForums[i].contains(forumId)) {
+                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER_MODERATOR);
+                }
+            }
         }
 
+        reader = Files.newBufferedReader(forumHasModerator.toPath());
+        csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String forumId = record.get("Forum.id");
+            String personId = record.get("Person.id");
 
+            for(int i = 0; i < 10; i++) {
+                if(selectedUserModeratorForums[i].contains(forumId)) {
+                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MODERATOR);
+                }
+            }
 
+            for(int i = 0; i < 10; i++) {
+                if(selectedUserForums[i].contains(forumId)) {
+                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER_MODERATOR);
+                }
+            }
+        }
         reader.close();
-        return scoreList;
     }
 
     private int getIndexFromSelectedUserId(String selectedUserId) {
@@ -107,5 +204,9 @@ public class StaticScoreCalculator {
             }
         }
         return -1;
+    }
+
+    private int extractBirthdayYear(String birthday) {
+        return Integer.valueOf(birthday.substring(0,4));
     }
 }

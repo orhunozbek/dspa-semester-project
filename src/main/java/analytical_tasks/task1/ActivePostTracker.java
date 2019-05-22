@@ -1,8 +1,8 @@
 package analytical_tasks.task1;
 
 import kafka.EventDeserializer;
-import model.stream.CommentEvent;
-import model.stream.LikeEvent;
+import model.CommentEvent;
+import model.LikeEvent;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple2;

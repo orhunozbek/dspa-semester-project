@@ -9,6 +9,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -200,6 +201,90 @@ public class Enricher {
                 String joinDate = record.get("joinDate");
 
                 csvPrinter.printRecord(forumId, personId, joinDate);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if(reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+    public void enrichForumHasModerator(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath());
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Forum.id", "Person.id")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Forum.id", "Person.id");
+            for(CSVRecord record : csvParser) {
+                String forumId = record.get("Forum.id");
+                String personId = record.get("Person.id");
+
+                csvPrinter.printRecord(forumId, personId);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if(reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPerson(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("id", "firstName", "lastName", "gender", "birthday",
+                                "creationDate", "locationIP", "browserUsed")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("id", "firstName", "lastName", "gender", "birthday",
+                    "creationDate", "locationIP", "browserUsed");
+            for(CSVRecord record : csvParser) {
+                String id = record.get("id");
+                String firstName = record.get("firstName");
+                String lastName = record.get("lastName");
+                String gender = record.get("gender");
+                String birthday = record.get("birthday");
+                String creationDate = record.get("creationDate");
+                String locationIP = record.get("locationIP");
+                String browserUsed = record.get("browserUsed");
+
+                csvPrinter.printRecord(id, firstName, lastName, gender, birthday, creationDate,
+                        locationIP, browserUsed);
             }
 
             csvPrinter.flush();

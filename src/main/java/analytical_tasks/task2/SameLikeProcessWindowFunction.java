@@ -1,6 +1,6 @@
 package analytical_tasks.task2;
 
-import model.stream.LikeEvent;
+import model.LikeEvent;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;

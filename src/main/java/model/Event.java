@@ -1,4 +1,4 @@
-package model.stream;
+package model;
 
 public interface Event {
 
