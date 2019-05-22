@@ -12,7 +12,9 @@ public enum FixedCategory {
     SAME_STUDY_PLACE("sameStudyPlace"),
     SAME_STUDY_PLACE_AND_YEAR("sameStudyPlaceAndYear"),
     SAME_WORK_PLACE("sameWorkPlace"),
-    SAME_WORK_PLACE_AND_YEAR("sameWorkPlaceAndYear");
+    SAME_WORK_PLACE_AND_YEAR("sameWorkPlaceAndYear"),
+    LIKED_THE_SAME("likedTheSame"),
+    ACTIVE("active");
 
 
     private final String configName;
