@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.Set;
 
+import static analytical_tasks.task2.FixedCategory.*;
+
 public class StaticScoreCalculator {
 
     private ScoreHandler[] scoreList;
@@ -18,6 +20,7 @@ public class StaticScoreCalculator {
     private Set<String>[] selectedUserForums;
     private Set<String>[] selectedUserModeratorForums;
     private int[] birthdays;
+    private String[] browsers;
 
     public StaticScoreCalculator() {
         scoreList = new ScoreHandler[10];
@@ -48,6 +51,7 @@ public class StaticScoreCalculator {
         selectedUserForums = new Set[10];
         selectedUserModeratorForums = new Set[10];
         birthdays = new int[10];
+        browsers = new String[10];
     }
 
     public ScoreHandler[] readStaticScores() throws Exception {
@@ -76,10 +80,12 @@ public class StaticScoreCalculator {
         for(CSVRecord record : csvParser) {
             String id = record.get("id");
             String birthday = record.get("birthday");
+            String browser = record.get("browserUsed");
 
             int index = getIndexFromSelectedUserId(id);
             if (index != -1) {
                 birthdays[index] = extractBirthdayYear(birthday);
+                browsers[index] = browser;
             }
         }
         reader.close();
@@ -94,10 +100,15 @@ public class StaticScoreCalculator {
         for(CSVRecord record : csvParser) {
             String id = record.get("id");
             String birthday = record.get("birthday");
+            String browser = record.get("browserUsed");
 
             for(int i = 0; i < 10; i++) {
                 if(Math.abs(extractBirthdayYear(birthday) - birthdays[i]) <= sameAgeRange) {
-                    scoreList[i].updateScore(id, FixedCategory.SAME_AGE);
+                    scoreList[i].updateScore(id, SAME_AGE);
+                }
+
+                if(browser.equals(browsers[i])) {
+                    scoreList[i].updateScore(id, SAME_BROWSER);
                 }
             }
         }
@@ -165,13 +176,13 @@ public class StaticScoreCalculator {
 
             for(int i = 0; i < 10; i++) {
                 if(selectedUserForums[i].contains(forumId)) {
-                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER);
+                    scoreList[i].updateScore(personId, SAME_FORUM_MEMBER);
                 }
             }
 
             for(int i = 0; i < 10; i++) {
                 if(selectedUserModeratorForums[i].contains(forumId)) {
-                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER_MODERATOR);
+                    scoreList[i].updateScore(personId, SAME_FORUM_MEMBER_MODERATOR);
                 }
             }
         }
@@ -184,13 +195,13 @@ public class StaticScoreCalculator {
 
             for(int i = 0; i < 10; i++) {
                 if(selectedUserModeratorForums[i].contains(forumId)) {
-                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MODERATOR);
+                    scoreList[i].updateScore(personId, SAME_FORUM_MODERATOR);
                 }
             }
 
             for(int i = 0; i < 10; i++) {
                 if(selectedUserForums[i].contains(forumId)) {
-                    scoreList[i].updateScore(personId, FixedCategory.SAME_FORUM_MEMBER_MODERATOR);
+                    scoreList[i].updateScore(personId, SAME_FORUM_MEMBER_MODERATOR);
                 }
             }
         }
