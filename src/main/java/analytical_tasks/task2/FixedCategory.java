@@ -15,6 +15,8 @@ public enum FixedCategory {
     SAME_WORK_PLACE_AND_YEAR("sameWorkPlaceAndYear"),
     LIKED_THE_SAME("likedTheSame"),
     SAME_FORUM_POST("postedSameForum"),
+    COMMENTED_SAME_POST("commentedSamePost"),
+    COMMENTED_SAME_COMMENT("commentedSameComment"),
     ACTIVE("active");
 
 

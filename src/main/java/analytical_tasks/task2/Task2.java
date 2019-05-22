@@ -2,6 +2,7 @@ package analytical_tasks.task2;
 
 import kafka.EventDeserializer;
 import main.Main;
+import model.CommentEvent;
 import model.LikeEvent;
 import model.PostEvent;
 import org.apache.commons.configuration2.Configuration;
@@ -108,8 +109,30 @@ public class Task2 {
                 .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
                 .process(new PostToSameForumWindowFunction(selectedUserIdArray));
 
+        // Source for same Comment
+        DataStream<CommentEvent> commentEventDataStream = env.addSource(
+                new FlinkKafkaConsumer011<CommentEvent>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
+
+        DataStream<ScoreHandler[]> commentEventProcessedStream = commentEventDataStream
+                .process(new ReorderProcess<>()).setParallelism(1)
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(10)) {
+                    @Override
+                    public long extractTimestamp(CommentEvent commentEvent) {
+                        return commentEvent.getTimeMilisecond();
+                    }
+                })
+                .keyBy(new KeySelector<CommentEvent, String>() {
+                    @Override
+                    public String getKey(CommentEvent commentEvent) throws Exception {
+                        return commentEvent.getId();
+                    }
+                })
+                .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
+                .process(new CommentSamePostWindowFunction(selectedUserIdArray));
+
 
         likeEventProcessedStream.union(postEventProcessedStream)
+                .union(commentEventProcessedStream)
                 .windowAll(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
                 .reduce(new ReduceFunction<ScoreHandler[]>() {
                     @Override
@@ -128,6 +151,7 @@ public class Task2 {
                             staticScores[i].merge(scoreHandlers[i]);
                             friendProposals[i] = staticScores[i].returnTop5();
                         }
+                        System.out.println("Output");
                         return friendProposals;
                     }
                 }).setParallelism(1);

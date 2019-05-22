@@ -67,9 +67,9 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
                 for(int i = 0; i < 10; i++ ){
                     scoreHandlers[i].updateScore(likeEvent.getPersonId(), ACTIVE);
                 }
-                collector.collect(scoreHandlers);
             }
         });
+        collector.collect(scoreHandlers);
     }
 
     @Override

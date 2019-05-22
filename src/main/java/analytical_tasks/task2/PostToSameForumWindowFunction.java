@@ -69,6 +69,7 @@ public class PostToSameForumWindowFunction extends ProcessWindowFunction<PostEve
                 }
             }
         });
+        collector.collect(scoreHandlers);
     }
 
     @Override
