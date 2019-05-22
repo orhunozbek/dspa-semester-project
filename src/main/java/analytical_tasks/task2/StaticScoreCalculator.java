@@ -12,6 +12,12 @@ import java.util.Set;
 
 import static analytical_tasks.task2.FixedCategory.*;
 
+/**
+ * This class handles the static score calculation before
+ * other calculations happen. It means that this is executed
+ * before stream starts. In a real world application this would
+ * be done maybe once a day.
+ */
 public class StaticScoreCalculator {
 
     private ScoreHandler[] scoreList;
@@ -58,6 +64,7 @@ public class StaticScoreCalculator {
         languages = new Set[10];
     }
 
+    // Reads static scores from tables files
     public ScoreHandler[] readStaticScores() throws Exception {
         Configuration configuration = Main.getGlobalConfig();
         String workingDirectory = configuration.getString("workingDirectory");
@@ -77,6 +84,7 @@ public class StaticScoreCalculator {
         return scoreList;
     }
 
+    // Increase score, if they speak the same language
     private void personSpeaksLanguage(String workingDirectory) throws IOException {
         File personSpeaksLanguage = new File(workingDirectory + "/tables/person_speaks_language.csv");
         if(!personSpeaksLanguage.exists()) {
@@ -122,6 +130,7 @@ public class StaticScoreCalculator {
         reader.close();
     }
 
+    //Increase score if they have the same interests.
     private void personHasInterest(String workingDirectory) throws IOException {
         File personHasInterestTag = new File(workingDirectory + "/tables/person_hasInterest_tag.csv");
         if (!personHasInterestTag.exists()) {
@@ -167,6 +176,7 @@ public class StaticScoreCalculator {
         reader.close();
     }
 
+    //Increase the score if they are of the same age or use the same browser
     private void userSimilarities(Configuration configuration, String workingDirectory) throws IOException {
         int sameAgeRange = configuration.getInt("sameAgeRange");
         File person = new File(workingDirectory + "/tables/person.csv");
@@ -219,6 +229,7 @@ public class StaticScoreCalculator {
         reader.close();
     }
 
+    // Increase score if they use the same forum.
     private void forumMemberModerater(String workingDirectory) throws IOException {
         // Same Forum Member/Moderator
         File forumHasMember = new File(workingDirectory + "/tables/forum_hasMember_person.csv");

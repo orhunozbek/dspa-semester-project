@@ -1,5 +1,11 @@
 package analytical_tasks.task2;
 
+/**
+ * This enum represents the different Friend features
+ * that are used for the friend suggestions. The field
+ * configName is used to have a faster access to the
+ * properties file.
+ */
 public enum FixedCategory {
     SAME_FORUM_MEMBER("sameForumMember"),
     SAME_FORUM_MODERATOR("sameForumModerator"),
@@ -7,12 +13,7 @@ public enum FixedCategory {
     SAME_AGE("sameAge"),
     SAME_BROWSER("sameBrowser"),
     SAME_INTEREST_TAG("sameInterestTag"),
-    SAME_LOCATION("sameLocation"),
     SAME_LANGUAGE("sameLanguage"),
-    SAME_STUDY_PLACE("sameStudyPlace"),
-    SAME_STUDY_PLACE_AND_YEAR("sameStudyPlaceAndYear"),
-    SAME_WORK_PLACE("sameWorkPlace"),
-    SAME_WORK_PLACE_AND_YEAR("sameWorkPlaceAndYear"),
     LIKED_THE_SAME("likedTheSame"),
     SAME_FORUM_POST("postedSameForum"),
     COMMENTED_SAME_POST("commentedSamePost"),

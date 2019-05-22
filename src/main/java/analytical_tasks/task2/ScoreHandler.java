@@ -10,12 +10,20 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * The ScoreHandler class keeps track of
+ * all scores a selected user has to all other users.
+ */
 public class ScoreHandler {
 
+    // This is one of the 10 selected users.
     String randSelectedUserId;
 
+    // Keeps for each user Id a score, that means for each
     HashMap<String, Score> randSelectedUserMap;
 
+    // The weight map keeps track of the different weights
+    // a category can have.
     HashMap<FixedCategory, Float> weight;
 
     public ScoreHandler(String randSelectedUserId) {
@@ -29,6 +37,8 @@ public class ScoreHandler {
         }
     }
 
+    // Updates the score of a user in the randSelectedUserMap
+    // by the weight factor.
     public void updateScore(String scoreUserId, FixedCategory category) {
         Score updateScore = randSelectedUserMap.get(scoreUserId);
         if(updateScore == null) {
@@ -41,6 +51,8 @@ public class ScoreHandler {
         randSelectedUserMap.put(scoreUserId, updateScore);
     }
 
+    // Merges this and another scorehandler together by
+    // adding the scores.
     public void merge(ScoreHandler scoreHandler) {
         for(HashMap.Entry<String,Score> entry : scoreHandler.randSelectedUserMap.entrySet()) {
             Score updateScore = randSelectedUserMap.get(entry.getKey());
@@ -55,6 +67,7 @@ public class ScoreHandler {
         }
     }
 
+    // Returns the top 5 suggested users in a linked list.
     public LinkedList returnTop5() {
         LinkedList<String> result = randSelectedUserMap.entrySet()
                 .stream()
