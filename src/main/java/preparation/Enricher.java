@@ -338,4 +338,41 @@ public class Enricher {
             }
         }
     }
+
+    public void enrichPersonSpeaksLanguage(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Person.id", "language")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Person.id", "language");
+            for(CSVRecord record : csvParser) {
+                String personId = record.get("Person.id");
+                String language = record.get("language");
+
+                csvPrinter.printRecord(personId, language);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if(reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 }

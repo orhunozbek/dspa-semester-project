@@ -22,6 +22,7 @@ public class StaticScoreCalculator {
     private int[] birthdays;
     private String[] browsers;
     private Set<String>[] interests;
+    private Set<String>[] languages;
 
     public StaticScoreCalculator() {
         scoreList = new ScoreHandler[10];
@@ -54,6 +55,7 @@ public class StaticScoreCalculator {
         birthdays = new int[10];
         browsers = new String[10];
         interests = new Set[10];
+        languages = new Set[10];
     }
 
     public ScoreHandler[] readStaticScores() throws Exception {
@@ -68,6 +70,59 @@ public class StaticScoreCalculator {
 
         userSimilarities(configuration, workingDirectory);
 
+        personHasInterest(workingDirectory);
+
+        personSpeaksLanguage(workingDirectory);
+
+        return scoreList;
+    }
+
+    private void personSpeaksLanguage(String workingDirectory) throws IOException {
+        File personSpeaksLanguage = new File(workingDirectory + "/tables/person_speaks_language.csv");
+        if(!personSpeaksLanguage.exists()) {
+            throw new FileNotFoundException("Language file not found");
+        }
+
+        Reader reader = Files.newBufferedReader(personSpeaksLanguage.toPath());
+        CSVFormat inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Person.id", "language")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        CSVParser csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String personId = record.get("Person.id");
+            String language = record.get("language");
+
+            int index = getIndexFromSelectedUserId(personId);
+            if (index != -1) {
+                if(languages[index] == null) {
+                    languages[index] = new HashSet<>();
+                }
+                languages[index].add(language);
+            }
+        }
+        reader.close();
+
+        reader = Files.newBufferedReader(personSpeaksLanguage.toPath());
+        inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Person.id", "language")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String personId = record.get("Person.id");
+            String language = record.get("language");
+
+            for(int i = 0; i < 10; i++) {
+                if(languages[i].contains(language)) {
+                    scoreList[i].updateScore(personId, SAME_LANGUAGE);
+                }
+            }
+        }
+        reader.close();
+    }
+
+    private void personHasInterest(String workingDirectory) throws IOException {
         File personHasInterestTag = new File(workingDirectory + "/tables/person_hasInterest_tag.csv");
         if (!personHasInterestTag.exists()) {
             throw new FileNotFoundException("Person File not found");
@@ -110,8 +165,6 @@ public class StaticScoreCalculator {
             }
         }
         reader.close();
-
-        return scoreList;
     }
 
     private void userSimilarities(Configuration configuration, String workingDirectory) throws IOException {
