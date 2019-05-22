@@ -1,5 +1,6 @@
-package analytical_tasks.task2;
+package analytical_tasks.task2.process;
 
+import analytical_tasks.task2.ScoreHandler;
 import model.CommentEvent;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
@@ -42,7 +43,7 @@ public class CommentSamePostWindowFunction extends ProcessWindowFunction<Comment
                         commentedComment = commentedSameComment.get(i);
                     } catch (Exception e) {
                         e.printStackTrace();
-                        return;
+                        continue;
                     }
                     if (commentedPosts == null) {
                         commentedPosts = new String[0];
@@ -86,5 +87,11 @@ public class CommentSamePostWindowFunction extends ProcessWindowFunction<Comment
             }
         });
         collector.collect(scoreHandlers);
+    }
+
+    @Override
+    public void clear(Context context) throws Exception {
+        commentedSameComment.clear();
+        commentedSamePost.clear();
     }
 }

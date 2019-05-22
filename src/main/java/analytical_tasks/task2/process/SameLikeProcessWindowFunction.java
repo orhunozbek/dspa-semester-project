@@ -1,5 +1,6 @@
-package analytical_tasks.task2;
+package analytical_tasks.task2.process;
 
+import analytical_tasks.task2.ScoreHandler;
 import model.LikeEvent;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
@@ -7,7 +8,8 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static analytical_tasks.task2.FixedCategory.ACTIVE;
@@ -16,14 +18,10 @@ import static analytical_tasks.task2.FixedCategory.LIKED_THE_SAME;
 public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEvent, ScoreHandler[],String,TimeWindow> {
 
     private String[] ids;
-    private HashSet[] likedPosts;
-    private MapState<String, Integer> sameLikes;
+    private MapState<Integer, String[]> likedPosts;
+
     public SameLikeProcessWindowFunction(String[] ids) {
         this.ids = ids;
-        likedPosts = new HashSet[10];
-        for(int i = 0; i < 10; i++) {
-            likedPosts[i] = new HashSet();
-        }
     }
 
     @Override
@@ -32,35 +30,36 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
         for(int i = 0; i < 10; i++) {
             scoreHandlers[i] = new ScoreHandler(ids[i]);
         }
-        sameLikes = context.windowState().getMapState(new MapStateDescriptor("likes", String.class, Integer.class));
+
+        likedPosts = context.windowState().getMapState(new MapStateDescriptor("likedSamePost", Integer.class, String[].class));
         iterable.forEach(new Consumer<LikeEvent>() {
             @Override
             public void accept(LikeEvent likeEvent) {
                 for(int i = 0; i < 10; i++) {
+                    String[] likes;
+                    try {
+                        likes = likedPosts.get(i);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        continue;
+                    }
+                    if (likes == null) {
+                        likes = new String[0];
+                    }
+
                     if(likeEvent.getPersonId().equals(ids[i])) {
-                        likedPosts[i].add(likeEvent.getPostId());
+                        List<String> temp = Arrays.asList(likes);
+                        temp.add(likeEvent.getPostId());
+                        try {
+                            likedPosts.put(i, (String []) temp.toArray());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            continue;
+                        }
                         break;
                     }
 
-                    if(likedPosts[i].contains(likeEvent.getPostId())) {
-                        Integer value;
-                        try {
-                             value = sameLikes.get(likeEvent.getPersonId());
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            continue;
-                        }
-                        if(value == null) {
-                            value = 1;
-                        } else {
-                            value = value + 1;
-                        }
-                        try {
-                            sameLikes.put(likeEvent.getPersonId(), value);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            continue;
-                        }
+                    if(Arrays.asList(likedPosts).contains(likeEvent.getPostId())) {
                         scoreHandlers[i].updateScore(likeEvent.getPersonId(), LIKED_THE_SAME);
                     }
                 }
@@ -74,6 +73,6 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
 
     @Override
     public void clear(Context context) throws Exception {
-        sameLikes.clear();
+        likedPosts.clear();
     }
 }

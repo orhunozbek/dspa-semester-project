@@ -1,5 +1,8 @@
 package analytical_tasks.task2;
 
+import analytical_tasks.task2.process.CommentSamePostWindowFunction;
+import analytical_tasks.task2.process.PostToSameForumWindowFunction;
+import analytical_tasks.task2.process.SameLikeProcessWindowFunction;
 import kafka.EventDeserializer;
 import main.Main;
 import model.CommentEvent;
@@ -151,7 +154,6 @@ public class Task2 {
                             staticScores[i].merge(scoreHandlers[i]);
                             friendProposals[i] = staticScores[i].returnTop5();
                         }
-                        System.out.println("Output");
                         return friendProposals;
                     }
                 }).setParallelism(1);
