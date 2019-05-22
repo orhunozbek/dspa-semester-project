@@ -24,6 +24,7 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
     private transient ValueState<Integer> userEngagementCounter;
     private transient ValueState<Integer> commentCounter;
     private transient ValueState<Integer> replyCounter;
+    private transient ValueState<Integer> prevUserEngagementCounter;
 
 
     @Override
@@ -72,6 +73,9 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
             if (timestamp % 3600000 == 0) {
                 out.collect(new Tuple4<>(timestamp, keyString, "userEngagement", userEngagementCounter.value()));
+                prevUserEngagementCounter.update(userEngagementCounter.value());
+            }else{
+                out.collect(new Tuple4<>(timestamp, keyString, "userEngagement", prevUserEngagementCounter.value()));
             }
         }
 
@@ -119,5 +123,11 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
                         BasicTypeInfo.INT_TYPE_INFO);
 
         userEngagement = getRuntimeContext().getMapState(userEngagementDescriptor);
+
+        ValueStateDescriptor<Integer> prevUserEngagementCounterDescriptor =
+                new ValueStateDescriptor<>("prevUserEngagementCounter",
+                        BasicTypeInfo.INT_TYPE_INFO, 0);
+
+        prevUserEngagementCounter = getRuntimeContext().getState(prevUserEngagementCounterDescriptor);
     }
 }
