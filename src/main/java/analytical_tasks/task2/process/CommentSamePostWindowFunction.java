@@ -8,6 +8,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -51,20 +52,20 @@ public class CommentSamePostWindowFunction extends ProcessWindowFunction<Comment
                     }
                     if (commentEvent.getPersonId().equals(ids[i])) {
                         if (commentEvent.getReply_to_postId() == null || commentEvent.getReply_to_postId().equals("")) {
-                            List<String> temp = Arrays.asList(commentedComment);
+                            List<String> temp = new ArrayList(Arrays.asList(commentedComment));
                             temp.add(commentEvent.getReply_to_commentId());
                             try {
-                                commentedSameComment.put(i, (String[]) temp.toArray());
+                                commentedSameComment.put(i, convertToArray(temp));
                             } catch (Exception e) {
                                 e.printStackTrace();
                                 continue;
                             }
                             continue;
                         } else {
-                            List<String> temp = Arrays.asList(commentedPosts);
+                            List<String> temp = new ArrayList(Arrays.asList(commentedPosts));
                             temp.add(commentEvent.getReply_to_postId());
                             try {
-                                commentedSamePost.put(i, (String[]) temp.toArray());
+                                commentedSamePost.put(i, convertToArray(temp));
                             } catch (Exception e) {
                                 e.printStackTrace();
                                 continue;
@@ -93,5 +94,13 @@ public class CommentSamePostWindowFunction extends ProcessWindowFunction<Comment
     public void clear(Context context) throws Exception {
         commentedSameComment.clear();
         commentedSamePost.clear();
+    }
+
+    public String[] convertToArray(List<String> list) {
+        String[] result = new String[list.size()];
+        for(int i = 0; i < list.size(); i++) {
+            result[i] = list.get(i);
+        }
+        return result;
     }
 }

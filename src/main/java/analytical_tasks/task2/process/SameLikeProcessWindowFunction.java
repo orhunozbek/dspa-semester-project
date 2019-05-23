@@ -8,6 +8,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -48,10 +49,10 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
                     }
 
                     if(likeEvent.getPersonId().equals(ids[i])) {
-                        List<String> temp = Arrays.asList(likes);
+                        List<String> temp = new ArrayList(Arrays.asList(likes));
                         temp.add(likeEvent.getPostId());
                         try {
-                            likedPosts.put(i, (String []) temp.toArray());
+                            likedPosts.put(i, convertToArray(temp));
                         } catch (Exception e) {
                             e.printStackTrace();
                             continue;
@@ -74,5 +75,13 @@ public class SameLikeProcessWindowFunction extends ProcessWindowFunction<LikeEve
     @Override
     public void clear(Context context) throws Exception {
         likedPosts.clear();
+    }
+
+    public String[] convertToArray(List<String> list) {
+        String[] result = new String[list.size()];
+        for(int i = 0; i < list.size(); i++) {
+            result[i] = list.get(i);
+        }
+        return result;
     }
 }

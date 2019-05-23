@@ -8,6 +8,7 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -46,10 +47,10 @@ public class PostToSameForumWindowFunction extends ProcessWindowFunction<PostEve
                         forumPosts = new String[0];
                     }
                     if(postEvent.getPersonId().equals(ids[i])) {
-                        List<String> temp = Arrays.asList(forumPosts);
+                        List<String> temp = new ArrayList(Arrays.asList(forumPosts));
                         temp.add(postEvent.getId());
                         try {
-                            sameForumPosts.put(i, (String[]) temp.toArray());
+                            sameForumPosts.put(i, convertToArray(temp));
                         } catch (Exception e) {
                             e.printStackTrace();
                             continue;
@@ -72,5 +73,13 @@ public class PostToSameForumWindowFunction extends ProcessWindowFunction<PostEve
     @Override
     public void clear(Context context) throws Exception {
         sameForumPosts.clear();
+    }
+
+    public String[] convertToArray(List<String> list) {
+        String[] result = new String[list.size()];
+        for(int i = 0; i < list.size(); i++) {
+            result[i] = list.get(i);
+        }
+        return result;
     }
 }

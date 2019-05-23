@@ -69,6 +69,11 @@ public class ScoreHandler {
 
     // Returns the top 5 suggested users in a linked list.
     public LinkedList returnTop5() {
+        // Remove self
+        if (this.randSelectedUserMap.containsKey(randSelectedUserId)) {
+            this.randSelectedUserMap.remove(randSelectedUserId);
+        }
+
         LinkedList<String> result = randSelectedUserMap.entrySet()
                 .stream()
                 .sorted(Comparator.comparing(HashMap.Entry::getValue, new Comparator<Score>() {
