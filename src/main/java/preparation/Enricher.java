@@ -8,10 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import preparation.ReaderUtils.Topic;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -32,6 +30,10 @@ public class Enricher {
     public void enrichStream(Topic topic, File inputFile, File outputFile) {
 
         switch (topic) {
+            case Post:
+                enrichPostEventStream(inputFile, outputFile);
+                break;
+
             case Comment:
                 enrichCommentEventStream(inputFile, outputFile);
                 break;
@@ -40,8 +42,28 @@ public class Enricher {
                 enrichLikesEventStream(inputFile, outputFile);
                 break;
 
-            case Post:
-                enrichPostEventStream(inputFile, outputFile);
+            case Forum_hasMember_person:
+                enrichForumHasMember(inputFile, outputFile);
+                break;
+
+            case Forum_hasModerator_person:
+                enrichForumHasModerator(inputFile, outputFile);
+                break;
+
+            case Person:
+                enrichPerson(inputFile, outputFile);
+                break;
+
+            case Person_hasInterest_tag:
+                enrichPersonHasInterestTag(inputFile, outputFile);
+                break;
+
+            case Person_speaks_language:
+                enrichPersonSpeaksLanguage(inputFile, outputFile);
+                break;
+
+            case Person_knows_person:
+                enrichPersonKnowsPerson(inputFile, outputFile);
                 break;
         }
     }
@@ -268,6 +290,238 @@ public class Enricher {
                             "Ignoring Post with ID: {}, Event Timestamp: {}, Current Timestamp: {}", id, epochNumber, currentTimestamp);
                 }
 
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichForumHasMember(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath());
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Forum.id", "Person.id", "joinDate")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Forum.id", "Person.id", "joinDate");
+            for (CSVRecord record : csvParser) {
+                String forumId = record.get("Forum.id");
+                String personId = record.get("Person.id");
+                String joinDate = record.get("joinDate");
+
+                csvPrinter.printRecord(forumId, personId, joinDate);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+    public void enrichForumHasModerator(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath());
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Forum.id", "Person.id")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Forum.id", "Person.id");
+            for (CSVRecord record : csvParser) {
+                String forumId = record.get("Forum.id");
+                String personId = record.get("Person.id");
+
+                csvPrinter.printRecord(forumId, personId);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPerson(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("id", "firstName", "lastName", "gender", "birthday",
+                            "creationDate", "locationIP", "browserUsed")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("id", "firstName", "lastName", "gender", "birthday",
+                    "creationDate", "locationIP", "browserUsed");
+            for (CSVRecord record : csvParser) {
+                String id = record.get("id");
+                String firstName = record.get("firstName");
+                String lastName = record.get("lastName");
+                String gender = record.get("gender");
+                String birthday = record.get("birthday");
+                String creationDate = record.get("creationDate");
+                String locationIP = record.get("locationIP");
+                String browserUsed = record.get("browserUsed");
+
+                csvPrinter.printRecord(id, firstName, lastName, gender, birthday, creationDate,
+                        locationIP, browserUsed);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPersonHasInterestTag(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Person.id", "Tag.id")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Person.id", "Tag.id");
+            for (CSVRecord record : csvParser) {
+                String personId = record.get("Person.id");
+                String tagId = record.get("Tag.id");
+
+                csvPrinter.printRecord(personId, tagId);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPersonSpeaksLanguage(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withHeader("Person.id", "language")
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+
+            csvPrinter.printRecord("Person.id", "language");
+            for (CSVRecord record : csvParser) {
+                String personId = record.get("Person.id");
+                String language = record.get("language");
+
+                csvPrinter.printRecord(personId, language);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPersonKnowsPerson(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            ((BufferedReader) reader).readLine();
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+            csvPrinter.printRecord("Person1.id", "Person2.id");
+            for (CSVRecord record : csvParser) {
+                String personId1 = record.get(0);
+                String personId2 = record.get(1);
+
+                csvPrinter.printRecord(personId1, personId2);
             }
 
             csvPrinter.flush();

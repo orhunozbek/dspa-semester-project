@@ -7,7 +7,6 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 
-import static preparation.ReaderUtils.Topic.*;
 import static preparation.ReaderUtils.getFile;
 
 public class StreamDataPreparation {
@@ -17,7 +16,7 @@ public class StreamDataPreparation {
 
         if(configuration == null) return false;
 
-        ReaderUtils.Topic[] topics = {Post, Like, Comment};
+        ReaderUtils.Topic[] topics = ReaderUtils.Topic.values();
         String workingDirectory = configuration.getString(ReaderUtils.Directory.WorkingDirectory.toString());
         Enricher enricher = new Enricher();
 
@@ -52,6 +51,9 @@ public class StreamDataPreparation {
 
         File streamsDirectory = new File(workingDir + "/streams");
         FileUtils.forceMkdir(streamsDirectory);
+
+        File tablesDirectory = new File(workingDir + "/tables");
+        FileUtils.forceMkdir(tablesDirectory);
     }
 
 }

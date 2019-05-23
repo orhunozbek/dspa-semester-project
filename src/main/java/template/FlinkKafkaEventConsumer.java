@@ -2,14 +2,11 @@ package template;
 
 import kafka.EventDeserializer;
 import model.CommentEvent;
-import model.PostEvent;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 
-import javax.xml.stream.events.Comment;
 import java.util.Properties;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;

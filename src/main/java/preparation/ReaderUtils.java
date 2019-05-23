@@ -23,6 +23,12 @@ public class ReaderUtils {
     }
 
     public enum Topic {
+        Post {
+            public String toString() {
+                return "/streams/post_event_stream.csv";
+            }
+        },
+
         Like {
             public String toString() {
                 return "/streams/likes_event_stream.csv";
@@ -35,9 +41,37 @@ public class ReaderUtils {
             }
         },
 
-        Post {
+        Forum_hasMember_person {
             public String toString() {
-                return "/streams/post_event_stream.csv";
+                return "/tables/forum_hasMember_person.csv";
+            }
+        },
+
+        Forum_hasModerator_person {
+            public String toString() {
+                return "/tables/forum_hasModerator_person.csv";
+            }
+        },
+
+        Person {
+            public String toString() {
+                return "/tables/person.csv";
+            }
+        },
+
+        Person_hasInterest_tag {
+            public String toString() {
+                return "/tables/person_hasInterest_tag.csv";
+            }
+        },
+        Person_speaks_language {
+            public String toString() {
+                return "/tables/person_speaks_language.csv";
+            }
+        },
+        Person_knows_person {
+            public String toString() {
+                return "/tables/person_knows_person.csv";
             }
         }
 
