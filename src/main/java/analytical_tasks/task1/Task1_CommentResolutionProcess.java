@@ -1,10 +1,13 @@
 package analytical_tasks.task1;
 
 import model.CommentEvent;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.shaded.guava18.com.google.common.collect.Lists;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.util.Collector;
 
@@ -12,58 +15,40 @@ import java.util.*;
 
 public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunction<String, CommentEvent, CommentEvent, CommentEvent> {
 
-    private transient ValueState<String> postID;
-    private transient ValueState<Long> processedWatermark;
-
-    // Operator State
     private HashMap<String, ArrayList<CommentEvent>> cache = new HashMap<>();
-    private HashSet<String> equivalenceClass;
+
+    private transient MapState<String,String> equivalenceClass;
+    private transient ValueState<Boolean> timerSet;
 
     @Override
     public void processElement(CommentEvent commentEvent, ReadOnlyContext readOnlyContext,
                                Collector<CommentEvent> collector) throws Exception {
 
-        // We need this because we can't access the current key in the processBroadcast
-        // function, so the state is set here.
-        if (postID.value().equals("")) postID.update(readOnlyContext.getCurrentKey());
-
-        // Directly emit it because it already has its corresponding parent postID
-        emitReply(commentEvent, collector);
-
-        // Each time a new event arrives, check whether our processed watermark is out of
-        // date, if it is the case, update processed watermark and clean the buffer from all
-        // buffered events with event time before the watermark, this keeps the state small
-        // enough.
-        if (processedWatermark.value() < readOnlyContext.timerService().currentWatermark()) {
-            processedWatermark.update(readOnlyContext.timerService().currentWatermark());
-
-            for (Map.Entry<String, ArrayList<CommentEvent>> entry : cache.entrySet()) {
-
-                Iterator<CommentEvent> itr = entry.getValue().iterator();
-
-                while (itr.hasNext()) {
-                    CommentEvent ev = itr.next();
-                    if (ev.getTimeMilisecond() < processedWatermark.value()) itr.remove();
-                }
-
-            }
+        if (!timerSet.value()) {
+            readOnlyContext.timerService().registerEventTimeTimer(readOnlyContext.timerService().currentWatermark() + 1 );
+            timerSet.update(true);
         }
+
+        equivalenceClass.put(commentEvent.getId(), "");
+        collector.collect(commentEvent);
+
     }
 
     private void emitReply(CommentEvent commentEvent, Collector<CommentEvent> collector) throws Exception {
 
-        // Update equivalence class state
-        equivalenceClass.add(commentEvent.getId());
+        if (!equivalenceClass.contains(commentEvent.getId())) {
+            // Update equivalence class state
+            equivalenceClass.put(commentEvent.getId(), "");
+            collector.collect(commentEvent);
 
-        collector.collect(commentEvent);
+            ArrayList<CommentEvent> arr = cache.get(commentEvent.getId());
 
-        ArrayList<CommentEvent> arr = cache.get(commentEvent.getId());
+            if (arr != null) {
+                for (CommentEvent event : arr) {
 
-        if (arr != null) {
-            for (CommentEvent event : arr) {
-
-                CommentEvent updatedCommentEvent = new CommentEvent(event, commentEvent.getReply_to_postId());
-                emitReply(updatedCommentEvent, collector);
+                    CommentEvent updatedCommentEvent = new CommentEvent(event, commentEvent.getReply_to_postId());
+                    emitReply(updatedCommentEvent, collector);
+                }
             }
         }
     }
@@ -71,27 +56,17 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
     @Override
     public void processBroadcastElement(CommentEvent commentEvent, Context context, Collector<CommentEvent> collector) throws Exception {
 
-        if (equivalenceClass.contains(commentEvent.getReply_to_commentId())) {
+        if (cache.get(commentEvent.getReply_to_commentId()) == null) {
 
-            equivalenceClass.add(commentEvent.getId());
-
-            CommentEvent updatedCommentEvent = new CommentEvent(commentEvent, postID.value());
-            emitReply(updatedCommentEvent, collector);
-
+            ArrayList<CommentEvent> arr = new ArrayList<>();
+            arr.add(commentEvent);
+            cache.put(commentEvent.getReply_to_commentId(), arr);
         } else {
 
-            if (cache.get(commentEvent.getReply_to_commentId()) == null) {
+            ArrayList<CommentEvent> arr = cache.get(commentEvent.getReply_to_commentId());
 
-                ArrayList<CommentEvent> arr = new ArrayList<>();
-                arr.add(commentEvent);
-                cache.put(commentEvent.getReply_to_commentId(), arr);
-            } else {
-
-                ArrayList<CommentEvent> arr = cache.get(commentEvent.getReply_to_commentId());
-
-                arr.add(commentEvent);
-                cache.put(commentEvent.getReply_to_commentId(), arr);
-            }
+            arr.add(commentEvent);
+            cache.put(commentEvent.getReply_to_commentId(), arr);
         }
     }
 
@@ -99,19 +74,44 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
 
-        ValueStateDescriptor<String> postIDDescriptor =
-                new ValueStateDescriptor<>("postID",
-                        BasicTypeInfo.STRING_TYPE_INFO, "");
+        MapStateDescriptor<String, String> equivalenceClassDescriptor = new MapStateDescriptor<>(
+                "equivalenceClass",
+                BasicTypeInfo.STRING_TYPE_INFO,
+                BasicTypeInfo.STRING_TYPE_INFO);
 
-        postID = getRuntimeContext().getState(postIDDescriptor);
+        equivalenceClass = getRuntimeContext().getMapState(equivalenceClassDescriptor);
 
-        ValueStateDescriptor<Long> processedWatermarkDescriptor =
-                new ValueStateDescriptor<>("processedWatermark",
-                        BasicTypeInfo.LONG_TYPE_INFO, 0L);
+        ValueStateDescriptor<Boolean> timerSetDescriptor =
+                new ValueStateDescriptor<>("timerSet",
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
 
-        processedWatermark = getRuntimeContext().getState(processedWatermarkDescriptor);
-        equivalenceClass = new HashSet<>();
+        timerSet = getRuntimeContext().getState(timerSetDescriptor);
     }
+
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<CommentEvent> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 1);
+
+        for (String entry: Lists.newArrayList(equivalenceClass.keys())){
+
+            if (cache.containsKey(entry)){
+
+                ArrayList<CommentEvent> evs = new ArrayList<>(cache.get(entry));
+                ArrayList<CommentEvent> toRemove = new ArrayList<>();
+
+                for (CommentEvent ev : evs){
+                        toRemove.add(ev);
+                        CommentEvent updatedCommentEvent = new CommentEvent(ev, ctx.getCurrentKey());
+                        emitReply(updatedCommentEvent, out);
+                }
+
+                cache.get(entry).removeAll(toRemove);
+            }
+        }
+    }
+
+
 }
 
 

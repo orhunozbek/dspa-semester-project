@@ -158,7 +158,7 @@ public class Task1 {
                             if (update.f0.equals(timeWindow)) resArray.add(new Tuple3<>(update.f1, update.f2, update.f3));
                         }
 
-                        collector.collect( new Tuple2<>(timeWindow, resArray));
+                        collector.collect( new Tuple2<>(context.window().getEnd(), resArray));
                     }
                 });
 
