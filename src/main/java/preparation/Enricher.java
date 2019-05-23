@@ -5,10 +5,7 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.text.DateFormat;
@@ -19,7 +16,7 @@ import java.util.Date;
 public class Enricher {
     public long convertToEpoch(String time, int formatId) {
         DateFormat sdf;
-        if(formatId == 0) {
+        if (formatId == 0) {
             sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
         } else {
             sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
@@ -48,7 +45,7 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String id = record.get("id");
                 String personId = record.get("personId");
                 String creationDate = record.get("creationDate");
@@ -76,7 +73,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -100,7 +97,7 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String personId = record.get("Person.id");
                 String postId = record.get("Post.id");
                 String creationDate = record.get("creationDate");
@@ -113,7 +110,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -138,7 +135,7 @@ public class Enricher {
             BufferedWriter writer = Files.newBufferedWriter(output.toPath());
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String id = record.get("id");
                 String personId = record.get("personId");
                 String creationDate = record.get("creationDate");
@@ -170,7 +167,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -195,7 +192,7 @@ public class Enricher {
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
             csvPrinter.printRecord("Forum.id", "Person.id", "joinDate");
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String forumId = record.get("Forum.id");
                 String personId = record.get("Person.id");
                 String joinDate = record.get("joinDate");
@@ -208,7 +205,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -234,7 +231,7 @@ public class Enricher {
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
             csvPrinter.printRecord("Forum.id", "Person.id");
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String forumId = record.get("Forum.id");
                 String personId = record.get("Person.id");
 
@@ -246,7 +243,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -262,7 +259,7 @@ public class Enricher {
             reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
             CSVFormat inputFormat = CSVFormat.newFormat('|')
                     .withHeader("id", "firstName", "lastName", "gender", "birthday",
-                                "creationDate", "locationIP", "browserUsed")
+                            "creationDate", "locationIP", "browserUsed")
                     .withFirstRecordAsHeader()
                     .withRecordSeparator('\n');
             CSVFormat outputFormat = CSVFormat.newFormat('|')
@@ -273,7 +270,7 @@ public class Enricher {
 
             csvPrinter.printRecord("id", "firstName", "lastName", "gender", "birthday",
                     "creationDate", "locationIP", "browserUsed");
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String id = record.get("id");
                 String firstName = record.get("firstName");
                 String lastName = record.get("lastName");
@@ -292,7 +289,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -317,7 +314,7 @@ public class Enricher {
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
             csvPrinter.printRecord("Person.id", "Tag.id");
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String personId = record.get("Person.id");
                 String tagId = record.get("Tag.id");
 
@@ -329,7 +326,7 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {
@@ -354,7 +351,7 @@ public class Enricher {
             CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
 
             csvPrinter.printRecord("Person.id", "language");
-            for(CSVRecord record : csvParser) {
+            for (CSVRecord record : csvParser) {
                 String personId = record.get("Person.id");
                 String language = record.get("language");
 
@@ -366,7 +363,43 @@ public class Enricher {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            if(reader != null) {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void enrichPersonKnowsPerson(File input, File output) {
+        Reader reader = null;
+        try {
+            reader = Files.newBufferedReader(input.toPath(), Charset.forName("ISO-8859-1"));
+            ((BufferedReader) reader).readLine();
+            CSVFormat inputFormat = CSVFormat.newFormat('|')
+                    .withFirstRecordAsHeader()
+                    .withRecordSeparator('\n');
+            CSVFormat outputFormat = CSVFormat.newFormat('|')
+                    .withRecordSeparator('\n');
+            CSVParser csvParser = new CSVParser(reader, inputFormat);
+            BufferedWriter writer = Files.newBufferedWriter(output.toPath());
+            CSVPrinter csvPrinter = new CSVPrinter(writer, outputFormat);
+            csvPrinter.printRecord("Person1.id", "Person2.id");
+            for (CSVRecord record : csvParser) {
+                String personId1 = record.get(0);
+                String personId2 = record.get(1);
+
+                csvPrinter.printRecord(personId1, personId2);
+            }
+
+            csvPrinter.flush();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
                 try {
                     reader.close();
                 } catch (IOException e) {

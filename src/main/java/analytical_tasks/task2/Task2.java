@@ -186,7 +186,6 @@ public class Task2 {
                             staticScores[i].merge(scoreHandlers[i]);
                             friendProposals[i] = staticScores[i].returnTop5();
                         }
-                        System.out.println("Output");
                         return friendProposals;
                     }
                 }).setParallelism(1);

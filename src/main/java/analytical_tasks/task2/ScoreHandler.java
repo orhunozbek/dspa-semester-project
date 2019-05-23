@@ -2,11 +2,15 @@ package analytical_tasks.task2;
 
 import main.Main;
 import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.Reader;
+import java.nio.file.Files;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -68,11 +72,47 @@ public class ScoreHandler {
     }
 
     // Returns the top 5 suggested users in a linked list.
-    public LinkedList returnTop5() {
+    public LinkedList returnTop5() throws Exception {
         // Remove self
-        if (this.randSelectedUserMap.containsKey(randSelectedUserId)) {
-            this.randSelectedUserMap.remove(randSelectedUserId);
+        if (randSelectedUserMap.containsKey(randSelectedUserId)) {
+            randSelectedUserMap.remove(randSelectedUserId);
         }
+
+        Configuration configuration = Main.getGlobalConfig();
+        String workingDirectory = configuration.getString("workingDirectory");
+        File workingDirectoryFile = new File(workingDirectory);
+        if (!workingDirectoryFile.exists()) {
+            throw new FileNotFoundException("Working Directory not Found");
+        }
+
+        File personKnowsPerson = new File(workingDirectory + "/tables/person_knows_person.csv");
+        if (!personKnowsPerson.exists()) {
+            throw new FileNotFoundException("Forum Has Moderator File not Found");
+        }
+
+        Reader reader = Files.newBufferedReader(personKnowsPerson.toPath());
+        CSVFormat inputFormat = CSVFormat.newFormat('|')
+                .withHeader("Person1.id", "Person2.id")
+                .withFirstRecordAsHeader()
+                .withRecordSeparator('\n');
+        CSVParser csvParser = new CSVParser(reader, inputFormat);
+        for(CSVRecord record : csvParser) {
+            String person1Id = record.get("Person1.id");
+            String person2Id = record.get("Person2.id");
+
+            if(person1Id.equals(randSelectedUserId)) {
+                if(randSelectedUserMap.containsKey(person2Id)) {
+                    randSelectedUserMap.remove(person2Id);
+                }
+            }
+
+            if(person2Id.equals(randSelectedUserId)) {
+                if(randSelectedUserMap.containsKey(person1Id)) {
+                    randSelectedUserMap.remove(person1Id);
+                }
+            }
+        }
+        reader.close();
 
         LinkedList<String> result = randSelectedUserMap.entrySet()
                 .stream()

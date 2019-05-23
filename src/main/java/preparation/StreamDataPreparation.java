@@ -46,6 +46,10 @@ public class StreamDataPreparation {
         if(!personSpeaksLanguageOrigFile.exists()) {
             return false;
         }
+        File personKnowsPersonOrigFile = new File(dataDirectory + "/tables/person_knows_person.csv");
+        if(!personKnowsPersonOrigFile.exists()) {
+            return false;
+        }
 
         String workingDirectory = configuration.getString("workingDirectory");
         File workingDirectoryFile = new File(workingDirectory);
@@ -116,6 +120,13 @@ public class StreamDataPreparation {
             e.printStackTrace();
         }
 
+        File personKnowsPersonFile = new File(workingDirectoryFile + "/tables/person_knows_person.csv");
+        try {
+            personKnowsPersonFile.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         // Dynamic data
 
         Enricher enricher = new Enricher();
@@ -129,6 +140,7 @@ public class StreamDataPreparation {
         enricher.enrichPerson(personOrigFile, personFile);
         enricher.enrichPersonHasInterestTag(personHasInterestOrigFile, personHasInterestFile);
         enricher.enrichPersonSpeaksLanguage(personSpeaksLanguageOrigFile, personSpeaksLanguageFile);
+        enricher.enrichPersonKnowsPerson(personKnowsPersonOrigFile, personKnowsPersonFile);
 
         return true;
     }
