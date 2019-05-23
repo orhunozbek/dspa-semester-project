@@ -61,7 +61,7 @@ configuration in config.properties: writeToKafka = false.
 Second Startup:
 When you start Kafka a second time, for example with the scripts, then you only
 need to check 5-8 again. Make sure that you write at least once to Kafka every
-time you shutdown Kafka. When you do not shut down Kafka you don't need to do
-any of these steps at all.
+time you shutdown your computer. When you do not shut down your computer you don't
+need to do any of these steps at all.
 
 How to run:
