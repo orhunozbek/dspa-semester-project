@@ -87,7 +87,7 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
             Tuple<Long, T> iter = buffer.first();
             long iterTimestamp = iter.x;
             T iterEvent = iter.y;
-            if(iterTimestamp < currentProcessingTime) {
+            if(iterTimestamp <= currentProcessingTime) {
                 collector.collect(iterEvent);
                 buffer.remove(iter);
                 if(verbose) {
@@ -109,7 +109,6 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
             }
             long waitingOption1 = outputTime - currentProcessingTime;
             long waitingOption2 = buffer.first().x - currentProcessingTime;
-
             if(waitingOption1 <= 0 || waitingOption2 <= 0) {
                 return;
             }
