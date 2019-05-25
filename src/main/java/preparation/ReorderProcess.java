@@ -8,7 +8,6 @@ import org.apache.flink.util.Collector;
 import utils.Tuple;
 
 import java.util.Comparator;
-import java.util.Date;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -27,9 +26,6 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
     int maxDelayInMilli;
     // The time output starts.
     long startingTimestamp;
-    // This checks if the data arrives in order and throws away out
-    // of order data.
-    long outOfOrderCheck;
 
     TreeSet<Tuple<Long, T>> buffer;
 
@@ -39,45 +35,23 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
         if (firstElement) {
             Configuration configuration = Main.getGlobalConfig();
             verbose = configuration.getBoolean("task0Verbose");
-            outOfOrderCheck = event.getTimestamp();
             buffer = new TreeSet<>(Comparator.comparingLong(t -> t.x));
             startingTimestamp = currentProcessingTime;
-            if(verbose) {
-                System.out.println("Starting time at: " + (new Date(startingTimestamp)).toString());
-            }
             timeDifference = currentProcessingTime - event.getTimestamp();
             speedup = configuration.getLong("speedup");
             minDelayInMilli = configuration.getInt("minDelayInSec") * 1000;
             maxDelayInMilli = configuration.getInt("maxDelayInSec") * 1000;
             firstElement = false;
-        } else {
-            if(event.getTimestamp() < outOfOrderCheck) {
-                if(verbose) {
-                    System.out.println("Found out of order. Last timestamp: " +
-                            (new Date(outOfOrderCheck)).toString() +
-                            " Element timestamp: " +
-                            (new Date(event.getTimestamp())).toString());
-                }
-                return;
-            } else {
-                outOfOrderCheck = event.getTimestamp();
-            }
         }
-
         // Calculate time to output event.
         int randomOffset = ThreadLocalRandom.current().nextInt(minDelayInMilli, maxDelayInMilli);
         long updatedTimestamp = event.getTimestamp() + timeDifference + randomOffset;
         long timeUntilOutput = (updatedTimestamp - startingTimestamp) / speedup;
         long outputTime = startingTimestamp + timeUntilOutput;
-        buffer.add(new Tuple<>(outputTime, event));
-        if(verbose) {
-            System.out.println("Calculated event." +
-                    " Rolled Offset[secs]: " + (randomOffset/1000) +
-                    " Original Timestamp: " + (new Date(event.getTimestamp())).toString() +
-                    " Timestamp translated to current with offset: " + (new Date(updatedTimestamp)).toString() +
-                    " Output Time: " + (new Date(outputTime).toString()));
+        while (buffer.contains(new Tuple<>(outputTime, null))) {
+            outputTime = outputTime + 1;
         }
-
+        buffer.add(new Tuple<>(outputTime, event));
         // Check if something needs to be output.
         while (true) {
             currentProcessingTime = context.timerService().currentProcessingTime();
@@ -90,12 +64,6 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
             if(iterTimestamp <= currentProcessingTime) {
                 collector.collect(iterEvent);
                 buffer.remove(iter);
-                if(verbose) {
-                    long currentTime = context.timerService().currentProcessingTime();
-                    System.out.println("Output." +
-                            " Current Time: " + (new Date(currentProcessingTime)).toString() +
-                            " Output Time: " + (new Date(iterTimestamp)).toString());
-                }
             } else {
                 break;
             }
@@ -119,6 +87,5 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
                 Thread.sleep(waitingOption1);
             }
         }
-        return;
     }
 }
