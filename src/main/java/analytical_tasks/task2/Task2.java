@@ -46,6 +46,8 @@ public class Task2 {
             return;
         }
 
+        int maxDelay = configuration.getInt("maxDelayInSec");
+
         // Read dynamic data, calculate stream score.
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -60,17 +62,9 @@ public class Task2 {
         kafkaProps.setProperty(ENABLE_AUTO_COMMIT_CONFIG, "false");
 
         String[] selectedUserIdArray = new String[10];
-        selectedUserIdArray[0] = configuration.getString("friendId0");
-        selectedUserIdArray[1] = configuration.getString("friendId1");
-        selectedUserIdArray[2] = configuration.getString("friendId2");
-        selectedUserIdArray[3] = configuration.getString("friendId3");
-        selectedUserIdArray[4] = configuration.getString("friendId4");
-        selectedUserIdArray[5] = configuration.getString("friendId5");
-        selectedUserIdArray[6] = configuration.getString("friendId6");
-        selectedUserIdArray[7] = configuration.getString("friendId7");
-        selectedUserIdArray[8] = configuration.getString("friendId8");
-        selectedUserIdArray[9] = configuration.getString("friendId9");
-
+        for(int i = 0; i < 10; i ++) {
+            selectedUserIdArray[i] = configuration.getString("friendId" + i);
+        }
 
         // Source for all comment events
         DataStream<LikeEvent> likeEventDataStream = env.addSource(
@@ -79,18 +73,13 @@ public class Task2 {
         // This calculates the score when the users like the same post
         DataStream<ScoreHandler[]> likeEventProcessedStream = likeEventDataStream
                 .process(new ReorderProcess<>()).setParallelism(1)
-                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(maxDelay)) {
                     @Override
                     public long extractTimestamp(LikeEvent likeEvent) {
                         return likeEvent.getTimeMilisecond();
                     }
                 })
-                .keyBy(new KeySelector<LikeEvent, String>() {
-                    @Override
-                    public String getKey(LikeEvent likeEvent) throws Exception {
-                        return likeEvent.getPostId();
-                    }
-                })
+                .keyBy((KeySelector<LikeEvent, String>) LikeEvent::getPostId)
                 .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
                 .process(new SameLikeProcessWindowFunction(selectedUserIdArray));
 
@@ -107,18 +96,13 @@ public class Task2 {
                         return postEvent.getTimeMilisecond();
                     }
                 })
-                .keyBy(new KeySelector<PostEvent, String>() {
-                    @Override
-                    public String getKey(PostEvent postEvent) throws Exception {
-                        return postEvent.getId();
-                    }
-                })
+                .keyBy((KeySelector<PostEvent, String>) PostEvent::getId)
                 .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
                 .process(new PostToSameForumWindowFunction(selectedUserIdArray));
 
         // Source for same Comment
         DataStream<CommentEvent> commentEventDataStream = env.addSource(
-                new FlinkKafkaConsumer011<CommentEvent>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
+                new FlinkKafkaConsumer011<>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
 
         // This increases the score if they comment on the same thing.
         DataStream<ScoreHandler[]> commentEventProcessedStream = commentEventDataStream
@@ -129,12 +113,7 @@ public class Task2 {
                         return commentEvent.getTimeMilisecond();
                     }
                 })
-                .keyBy(new KeySelector<CommentEvent, String>() {
-                    @Override
-                    public String getKey(CommentEvent commentEvent) throws Exception {
-                        return commentEvent.getId();
-                    }
-                })
+                .keyBy((KeySelector<CommentEvent, String>) CommentEvent::getId)
                 .window(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
                 .process(new CommentSamePostWindowFunction(selectedUserIdArray));
 
@@ -178,16 +157,13 @@ public class Task2 {
                 }).setParallelism(1)
                 // And finally merge the static scores in and output the top 5
                 // friend suggestions
-                .map(new MapFunction<ScoreHandler[], LinkedList<String>[]>() {
-                    @Override
-                    public LinkedList<String>[] map(ScoreHandler[] scoreHandlers) throws Exception {
-                        LinkedList<String>[] friendProposals = new LinkedList[10];
-                        for (int i = 0; i < 10; i++) {
-                            staticScores[i].merge(scoreHandlers[i]);
-                            friendProposals[i] = staticScores[i].returnTop5();
-                        }
-                        return friendProposals;
+                .map((MapFunction<ScoreHandler[], LinkedList<String>[]>) scoreHandlers -> {
+                    LinkedList<String>[] friendProposals = new LinkedList[10];
+                    for (int i = 0; i < 10; i++) {
+                        staticScores[i].merge(scoreHandlers[i]);
+                        friendProposals[i] = staticScores[i].returnTop5();
                     }
+                    return friendProposals;
                 }).setParallelism(1);
 
         likeEventProcessedStream.print();
