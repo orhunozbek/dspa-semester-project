@@ -120,8 +120,8 @@ public class ScoreHandler {
 
         LinkedList<Tuple2<String,Score>> result = randSelectedUserMap.entrySet()
                 .stream()
-                .sorted(Comparator.comparing(HashMap.Entry::getValue, (score, t1) ->
-                        Float.compare(score.value, t1.value)))
+                .sorted(Comparator.comparing(HashMap.Entry::getValue, (score1, score2) ->
+                        Float.compare(score2.value, score1.value)))
                 .map(stringScoreEntry -> new Tuple2<>(stringScoreEntry.getKey(), stringScoreEntry.getValue()))
                 .collect(Collectors.toCollection(LinkedList::new));
 
