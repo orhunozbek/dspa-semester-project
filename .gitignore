@@ -2,3 +2,7 @@
 target/
 dspa-2019-semester-project.iml
 dependency-reduced-pom.xml
+input/streams
+input/tables
+working/streams
+working/tables
