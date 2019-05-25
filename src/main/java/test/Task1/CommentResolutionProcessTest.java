@@ -3,12 +3,9 @@ package test.Task1;
 import analytical_tasks.task1.Task1_CommentResolutionProcess;
 import kafka.EventDeserializer;
 import kafka.EventKafkaProducer;
-import kafka.EventSerializer;
-import kafka.TupleSerializationSchema;
 import main.Main;
 import model.CommentEvent;
 import org.apache.commons.configuration2.Configuration;
-import org.apache.commons.configuration2.SystemConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -19,30 +16,21 @@ import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SplitStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
-import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
-import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.*;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import preparation.ReaderUtils;
+import preparation.ReorderProcess;
 import preparation.StreamDataPreparation;
 
 import java.io.File;
@@ -58,7 +46,7 @@ import static preparation.ReaderUtils.Topic.Comment;
 public class CommentResolutionProcessTest {
 
 
-    HashMap<String,String> postMap =  new HashMap<>();
+    private HashMap<String,String> postMap =  new HashMap<>();
     private static final String configurationFilePath = "src/main/java/test/Task1/testConfig.properties";
     private static final String kafkaBrokerList = "localhost:9092";
 
@@ -95,7 +83,7 @@ public class CommentResolutionProcessTest {
 
     }
 
-    public void startCommentMatchingProcess(Configuration configuration){
+    private void startCommentMatchingProcess(Configuration configuration){
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
@@ -111,7 +99,7 @@ public class CommentResolutionProcessTest {
         int maxDelay = configuration.getInt("maxDelayInSec");
 
         SplitStream<CommentEvent> commentEvents = commentEventsSource
-                //.process(new ReorderProcess<CommentEvent>()).setParallelism(1)
+                .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
 
                     @Override
@@ -200,7 +188,6 @@ public class CommentResolutionProcessTest {
 
         final int giveUp = 100;
         int noRecordsCount = 0;
-        int count = 0;
 
         while (true) {
             final ConsumerRecords<Long, String> consumerRecords =
@@ -212,7 +199,6 @@ public class CommentResolutionProcessTest {
             }
 
             for (ConsumerRecord<Long,String> record: consumerRecords){
-                count ++;
                 String [] vals = record.value().split(",");
                 System.out.println(String.format("Replies left %d", postMap.size()));
                 assert(postMap.get(vals[0]).equals(vals[1]));
