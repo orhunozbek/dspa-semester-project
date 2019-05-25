@@ -5,6 +5,8 @@ import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.flink.api.java.tuple.Tuple12;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -13,8 +15,6 @@ import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -51,9 +51,9 @@ public class ScoreHandler {
         if (updateScore == null) {
             updateScore = new Score();
             updateScore.scoreUserId = scoreUserId;
-            updateScore.staticScore = 0 + (weight.get(category));
+            updateScore.value = 0 + (weight.get(category));
         } else {
-            updateScore.staticScore = updateScore.staticScore + weight.get(category);
+            updateScore.value = updateScore.value + weight.get(category);
         }
         randSelectedUserMap.put(scoreUserId, updateScore);
     }
@@ -66,16 +66,17 @@ public class ScoreHandler {
             if (updateScore == null) {
                 updateScore = new Score();
                 updateScore.scoreUserId = entry.getKey();
-                updateScore.staticScore = entry.getValue().staticScore;
+                updateScore.value = entry.getValue().value;
 
             } else {
-                updateScore.staticScore = updateScore.staticScore + entry.getValue().staticScore;
+                updateScore.value = updateScore.value + entry.getValue().value;
             }
+            randSelectedUserMap.put(entry.getKey(), updateScore);
         }
     }
 
     // Returns the top 5 suggested users in a linked list.
-    public LinkedList returnTop5() throws Exception {
+    public Tuple12 returnTop5() throws Exception {
         // Remove self
         if (randSelectedUserMap.containsKey(randSelectedUserId)) {
             randSelectedUserMap.remove(randSelectedUserId);
@@ -117,27 +118,25 @@ public class ScoreHandler {
         }
         reader.close();
 
-        LinkedList<String> result = randSelectedUserMap.entrySet()
+        LinkedList<Tuple2<String,Score>> result = randSelectedUserMap.entrySet()
                 .stream()
-                .sorted(Comparator.comparing(HashMap.Entry::getValue, new Comparator<Score>() {
-                    @Override
-                    public int compare(Score score, Score t1) {
-                        return Float.compare(score.staticScore, t1.staticScore);
-                    }
-                }))
-                .map(new Function<Map.Entry<String, Score>, String>() {
-                    @Override
-                    public String apply(Map.Entry<String, Score> stringScoreEntry) {
-                        return stringScoreEntry.getKey();
-                    }
-                })
+                .sorted(Comparator.comparing(HashMap.Entry::getValue, (score, t1) ->
+                        Float.compare(score.value, t1.value)))
+                .map(stringScoreEntry -> new Tuple2<>(stringScoreEntry.getKey(), stringScoreEntry.getValue()))
                 .collect(Collectors.toCollection(LinkedList::new));
-        if (result != null && result.size() > 5) {
-            for (int i = 5; i < result.size(); i++) {
-                result.remove(i);
+
+        Tuple12 resultTuple = new Tuple12();
+        resultTuple.setField(randSelectedUserId, 1);
+
+        resultTuple.setField(randSelectedUserId, 2);
+        for(int i = 0; i < 5; i++) {
+            if(result.size() > i) {
+                resultTuple.setField(result.get(i).f0, 2 + 2 * i);
+                resultTuple.setField(result.get(i).f1.value,  2 * i + 3);
             }
         }
-        return result;
+
+        return resultTuple;
     }
 
 

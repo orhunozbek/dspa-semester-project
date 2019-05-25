@@ -12,17 +12,23 @@ import org.apache.commons.configuration2.Configuration;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple12;
+import org.apache.flink.api.java.tuple.Tuple7;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
+import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import org.apache.flink.util.Collector;
 import preparation.ReorderProcess;
 
 import java.util.LinkedList;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
@@ -123,50 +129,28 @@ public class Task2 {
                 .union(commentEventProcessedStream)
                 //Then we perform another window
                 .windowAll(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
-                //Aggregate all scores.
-                .aggregate(new AggregateFunction<ScoreHandler[], ScoreHandler[], ScoreHandler[]>() {
+                .process(new ProcessAllWindowFunction<ScoreHandler[], Object, TimeWindow>() {
                     @Override
-                    public ScoreHandler[] createAccumulator() {
-                        ScoreHandler[] accs = new ScoreHandler[10];
-                        for (int i = 0; i < 10; i++) {
-                            accs[i] = new ScoreHandler(selectedUserIdArray[i]);
+                    public void process(Context context, Iterable<ScoreHandler[]> iterable, Collector<Object> collector) throws Exception {
+                        ScoreHandler[] result = new ScoreHandler[10];
+                        for(int i = 0; i < 10; i++) {
+                            result[i] = new ScoreHandler(selectedUserIdArray[i]);
                         }
-                        return accs;
-                    }
+                        iterable.forEach(iterScoreHandlerArray -> {
+                            for(int i = 0; i < 10; i++) {
+                                result[i].merge(iterScoreHandlerArray[i]);
+                            }
+                        });
 
-                    @Override
-                    public ScoreHandler[] add(ScoreHandler[] scoreHandler1, ScoreHandler[] scoreHandler2) {
-                        for (int i = 0; i < 10; i++) {
-                            scoreHandler1[i].merge(scoreHandler2[i]);
+                        Tuple12[] friendProposals = new Tuple12[10];
+                        for(int i = 0; i < 10; i++) {
+                            result[i].merge(staticScores[i]);
+                            friendProposals[i] = result[i].returnTop5();
+                            friendProposals[i].f0 = context.window().getEnd();
+
                         }
-                        return scoreHandler1;
                     }
-
-                    @Override
-                    public ScoreHandler[] getResult(ScoreHandler[] scoreHandlers) {
-                        return scoreHandlers;
-                    }
-
-                    @Override
-                    public ScoreHandler[] merge(ScoreHandler[] scoreHandler1, ScoreHandler[] scoreHandler2) {
-                        for (int i = 0; i < 10; i++) {
-                            scoreHandler1[i].merge(scoreHandler2[i]);
-                        }
-                        return scoreHandler1;
-                    }
-                }).setParallelism(1)
-                // And finally merge the static scores in and output the top 5
-                // friend suggestions
-                .map((MapFunction<ScoreHandler[], LinkedList<String>[]>) scoreHandlers -> {
-                    LinkedList<String>[] friendProposals = new LinkedList[10];
-                    for (int i = 0; i < 10; i++) {
-                        staticScores[i].merge(scoreHandlers[i]);
-                        friendProposals[i] = staticScores[i].returnTop5();
-                    }
-                    return friendProposals;
                 }).setParallelism(1);
-
-        likeEventProcessedStream.print();
         env.execute();
 
     }
