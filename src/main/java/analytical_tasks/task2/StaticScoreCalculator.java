@@ -27,39 +27,22 @@ public class StaticScoreCalculator {
     private ScoreHandler[] scoreList;
     private String[] selectedUserIdArray;
 
-    private Set<String>[] selectedUserForums;
-    private Set<String>[] selectedUserModeratorForums;
+    private Set[] selectedUserForums;
+    private Set[] selectedUserModeratorForums;
     private int[] birthdays;
     private String[] browsers;
-    private Set<String>[] interests;
-    private Set<String>[] languages;
+    private Set[] interests;
+    private Set[] languages;
 
     public StaticScoreCalculator() {
         scoreList = new ScoreHandler[10];
         selectedUserIdArray = new String[10];
 
         Configuration configuration = Main.getGlobalConfig();
-        scoreList[0] = new ScoreHandler(configuration.getString("friendId0"));
-        selectedUserIdArray[0] = configuration.getString("friendId0");
-        scoreList[1] = new ScoreHandler(configuration.getString("friendId1"));
-        selectedUserIdArray[1] = configuration.getString("friendId1");
-        scoreList[2] = new ScoreHandler(configuration.getString("friendId2"));
-        selectedUserIdArray[2] = configuration.getString("friendId2");
-        scoreList[3] = new ScoreHandler(configuration.getString("friendId3"));
-        selectedUserIdArray[3] = configuration.getString("friendId3");
-        scoreList[4] = new ScoreHandler(configuration.getString("friendId4"));
-        selectedUserIdArray[4] = configuration.getString("friendId4");
-        scoreList[5] = new ScoreHandler(configuration.getString("friendId5"));
-        selectedUserIdArray[5] = configuration.getString("friendId5");
-        scoreList[6] = new ScoreHandler(configuration.getString("friendId6"));
-        selectedUserIdArray[6] = configuration.getString("friendId6");
-        scoreList[7] = new ScoreHandler(configuration.getString("friendId7"));
-        selectedUserIdArray[7] = configuration.getString("friendId7");
-        scoreList[8] = new ScoreHandler(configuration.getString("friendId8"));
-        selectedUserIdArray[8] = configuration.getString("friendId8");
-        scoreList[9] = new ScoreHandler(configuration.getString("friendId9"));
-        selectedUserIdArray[9] = configuration.getString("friendId9");
-
+        for(int i = 0; i < 10; i++) {
+            scoreList[i] = new ScoreHandler(configuration.getString("friendId" + i));
+            selectedUserIdArray[i] = configuration.getString("friendId" + i);
+        }
         selectedUserForums = new Set[10];
         selectedUserModeratorForums = new Set[10];
         birthdays = new int[10];
