@@ -32,10 +32,10 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
     private transient ValueState<Boolean> timerSet;
 
-    // The timestamp of the
+    // The timestamp of the current window
     private transient ValueState<Long> currentWindowBegin;
 
-    // Counters for 3 statistics that we
+    // Counters for 3 statistics that we are interested in
     private transient ValueState<Integer> userEngagementCounter;
     private transient ValueState<Integer> commentCounter;
     private transient ValueState<Integer> replyCounter;
@@ -48,7 +48,6 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
     // Constants for eviction of events
     public static final long replyUpdateTime = 1000 * 60 * 30;
-    public static final long commentUpdateTime = 1000 * 60 * 30;
     public static final long userEngagementUpdateTime = 1000 * 60 * 60;
     private static final long activeUserThreshold = 12 * 60 * 60 * 1000;
 
@@ -67,7 +66,7 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
         // If this is a comment increment both comment counter and reply counter
         if (t.f1 == 1) {
 
-            if (t.f3 < currentWindowBegin.value() + commentUpdateTime) {
+            if (t.f3 < currentWindowBegin.value() + replyUpdateTime) {
                 commentCounter.update(commentCounter.value() + 1);
                 replyCounter.update(replyCounter.value() + 1);
             } else {
@@ -131,7 +130,7 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
         ArrayList<Long> newCommentQueue = new ArrayList<>();
         for (long queuedComment : commentQueue.get()) {
-            if (queuedComment <= currentWindowBegin.value() + commentUpdateTime) {
+            if (queuedComment <= currentWindowBegin.value() + replyUpdateTime) {
                 commentCounter.update(commentCounter.value() + 1);
             } else {
                 newCommentQueue.add(queuedComment);
