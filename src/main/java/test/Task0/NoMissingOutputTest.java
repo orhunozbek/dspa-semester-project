@@ -21,7 +21,7 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMI
  */
 public class NoMissingOutputTest {
 
-    private static final String configurationFilePath = "src/main/java/test/Task0/testConfig.properties";
+    private static final String configurationFilePath = "src/main/java/test/Task0/noMissingTestConfig.properties";
 
     @Test
     public void noMissingOutput() throws Exception {

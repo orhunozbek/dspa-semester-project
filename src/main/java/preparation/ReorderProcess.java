@@ -10,6 +10,7 @@ import org.apache.flink.util.Collector;
 import java.util.Comparator;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.ToLongFunction;
 
 public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
 
@@ -35,7 +36,12 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
         if (firstElement) {
             Configuration configuration = Main.getGlobalConfig();
             verbose = configuration.getBoolean("task0Verbose");
-            buffer = new TreeSet<>(Comparator.comparingLong(t -> t.f0));
+            buffer = new TreeSet<>((c1, c2) -> {
+                if(c1.f0.equals(c2.f0)) {
+                    return (int) (c1.f1.getTimestamp() - c2.f1.getTimestamp());
+                }
+                return (int) (c1.f0 - c2.f0);
+            });
             startingTimestamp = currentProcessingTime;
             timeDifference = currentProcessingTime - event.getTimestamp();
             speedup = configuration.getLong("speedup");
@@ -54,7 +60,7 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
         long updatedTimestamp = event.getTimestamp() + timeDifference + randomOffset;
         long timeUntilOutput = (updatedTimestamp - startingTimestamp) / speedup;
         long outputTime = startingTimestamp + timeUntilOutput;
-        while (buffer.contains(new Tuple2<>(outputTime, null))) {
+        while (buffer.contains(new Tuple2<>(outputTime, event))) {
             outputTime = outputTime + 1;
         }
         buffer.add(new Tuple2<>(outputTime, event));
