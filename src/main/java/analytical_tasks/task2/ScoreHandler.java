@@ -132,7 +132,7 @@ public class ScoreHandler {
         for(int i = 0; i < 5; i++) {
             if(result.size() > i) {
                 resultTuple.setField(result.get(i).f0, 2 + 2 * i);
-                resultTuple.setField(result.get(i).f1.value,  2 * i + 3);
+                resultTuple.setField(String.valueOf(result.get(i).f1.value),  2 * i + 3);
             }
         }
 

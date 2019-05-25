@@ -4,6 +4,7 @@ import analytical_tasks.task2.process.CommentSamePostWindowFunction;
 import analytical_tasks.task2.process.PostToSameForumWindowFunction;
 import analytical_tasks.task2.process.SameLikeProcessWindowFunction;
 import kafka.EventDeserializer;
+import kafka.TupleSerializationSchema;
 import main.Main;
 import model.CommentEvent;
 import model.LikeEvent;
@@ -13,6 +14,8 @@ import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple12;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple7;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -23,12 +26,11 @@ import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindow
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
 import org.apache.flink.util.Collector;
 import preparation.ReorderProcess;
 
-import java.util.LinkedList;
 import java.util.Properties;
-import java.util.function.Consumer;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
@@ -125,13 +127,13 @@ public class Task2 {
 
 
         //Finally we first union all streams
-        likeEventProcessedStream.union(postEventProcessedStream)
+        DataStream resultStream = likeEventProcessedStream.union(postEventProcessedStream)
                 .union(commentEventProcessedStream)
                 //Then we perform another window
                 .windowAll(SlidingEventTimeWindows.of(Time.hours(4), Time.hours(1)))
-                .process(new ProcessAllWindowFunction<ScoreHandler[], Object, TimeWindow>() {
+                .process(new ProcessAllWindowFunction<ScoreHandler[], Tuple12<String,String,String,String,String,String,String,String,String,String,String,String>, TimeWindow>() {
                     @Override
-                    public void process(Context context, Iterable<ScoreHandler[]> iterable, Collector<Object> collector) throws Exception {
+                    public void process(Context context, Iterable<ScoreHandler[]> iterable, Collector<Tuple12<String,String,String,String,String,String,String,String,String,String,String,String>> collector) throws Exception {
                         ScoreHandler[] result = new ScoreHandler[10];
                         for(int i = 0; i < 10; i++) {
                             result[i] = new ScoreHandler(selectedUserIdArray[i]);
@@ -146,11 +148,21 @@ public class Task2 {
                         for(int i = 0; i < 10; i++) {
                             result[i].merge(staticScores[i]);
                             friendProposals[i] = result[i].returnTop5();
-                            friendProposals[i].f0 = context.window().getEnd();
-
+                            friendProposals[i].f0 = String.valueOf(context.window().getEnd());
+                            collector.collect(friendProposals[i]);
                         }
                     }
                 }).setParallelism(1);
+
+
+        FlinkKafkaProducer011<Tuple12> resultProducer =
+                new FlinkKafkaProducer011<>(
+                        configuration.getString("brokerList"),
+                        configuration.getString("task2OutputTopic") ,
+                        new TupleSerializationSchema<>());
+
+        resultStream.addSink(resultProducer);
+
         env.execute();
 
     }
