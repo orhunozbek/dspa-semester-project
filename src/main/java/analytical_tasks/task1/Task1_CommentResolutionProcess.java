@@ -36,21 +36,17 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
 
     private void emitReply(CommentEvent commentEvent, Collector<CommentEvent> collector) throws Exception {
 
-        if (!equivalenceClass.contains(commentEvent.getId())) {
-            // Update equivalence class state
-            equivalenceClass.put(commentEvent.getId(), "");
-            collector.collect(commentEvent);
+        equivalenceClass.put(commentEvent.getId(), "");
+        collector.collect(commentEvent);
 
-            ArrayList<CommentEvent> arr = cache.get(commentEvent.getId());
-
-            if (arr != null) {
-                for (CommentEvent event : arr) {
-
-                    CommentEvent updatedCommentEvent = new CommentEvent(event, commentEvent.getReply_to_postId());
-                    emitReply(updatedCommentEvent, collector);
-                }
+        if (null !=  cache.get(commentEvent.getId())) {
+            for (CommentEvent event :  cache.get(commentEvent.getId())) {
+                CommentEvent updatedCommentEvent = new CommentEvent(event, commentEvent.getReply_to_postId());
+                emitReply(updatedCommentEvent, collector);
             }
         }
+
+        cache.remove(commentEvent.getId());
     }
 
     @Override
@@ -96,17 +92,11 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
         for (String entry: Lists.newArrayList(equivalenceClass.keys())){
 
             if (cache.containsKey(entry)){
-
-                ArrayList<CommentEvent> evs = new ArrayList<>(cache.get(entry));
-                ArrayList<CommentEvent> toRemove = new ArrayList<>();
-
-                for (CommentEvent ev : evs){
-                        toRemove.add(ev);
+                for (CommentEvent ev : cache.get(entry)){
                         CommentEvent updatedCommentEvent = new CommentEvent(ev, ctx.getCurrentKey());
                         emitReply(updatedCommentEvent, out);
                 }
-
-                cache.get(entry).removeAll(toRemove);
+                cache.remove(entry);
             }
         }
     }
