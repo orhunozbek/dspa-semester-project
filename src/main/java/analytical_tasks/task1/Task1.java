@@ -28,6 +28,7 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import preparation.ReorderProcess;
 
 import java.util.*;
 
@@ -82,7 +83,7 @@ public class Task1 {
 
 
         DataStream<LikeEvent> likeEvents = likeEventsSource
-                //.process(new ReorderProcess<LikeEvent>()).setParallelism(1)
+                .process(new ReorderProcess<LikeEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(maxDelay)) {
                     @Override
                     public long extractTimestamp(LikeEvent element) {
@@ -91,7 +92,7 @@ public class Task1 {
                 });
 
         SplitStream<CommentEvent> commentEvents = commentEventsSource
-                //.process(new ReorderProcess<CommentEvent>()).setParallelism(1)
+                .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
 
                     @Override
