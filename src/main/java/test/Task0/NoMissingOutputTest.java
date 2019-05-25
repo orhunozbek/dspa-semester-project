@@ -1,6 +1,5 @@
 package test.Task0;
 
-import akka.remote.artery.OutOfBuffersException;
 import kafka.EventDeserializer;
 import main.Main;
 import model.LikeEvent;
@@ -16,6 +15,10 @@ import java.util.Properties;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
 
+/**
+ * We cant really output everything, because we only output if we consumed
+ * all input
+ */
 public class NoMissingOutputTest {
 
     private static final String configurationFilePath = "src/main/java/test/Task0/testConfig.properties";

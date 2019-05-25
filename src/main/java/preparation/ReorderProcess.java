@@ -3,9 +3,9 @@ package preparation;
 import main.Main;
 import model.Event;
 import org.apache.commons.configuration2.Configuration;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import utils.Tuple;
 
 import java.util.Comparator;
 import java.util.TreeSet;
@@ -27,7 +27,7 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
     // The time output starts.
     long startingTimestamp;
 
-    TreeSet<Tuple<Long, T>> buffer;
+    TreeSet<Tuple2<Long, T>> buffer;
 
     @Override
     public void processElement(T event, Context context, Collector<T> collector) throws Exception {
@@ -35,7 +35,7 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
         if (firstElement) {
             Configuration configuration = Main.getGlobalConfig();
             verbose = configuration.getBoolean("task0Verbose");
-            buffer = new TreeSet<>(Comparator.comparingLong(t -> t.x));
+            buffer = new TreeSet<>(Comparator.comparingLong(t -> t.f0));
             startingTimestamp = currentProcessingTime;
             timeDifference = currentProcessingTime - event.getTimestamp();
             speedup = configuration.getLong("speedup");
@@ -44,30 +44,21 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
             firstElement = false;
         }
         // Calculate time to output event.
-        int randomOffset = ThreadLocalRandom.current().nextInt(minDelayInMilli, maxDelayInMilli);
+
+        int randomOffset;
+        if (minDelayInMilli != maxDelayInMilli) {
+            randomOffset = ThreadLocalRandom.current().nextInt(minDelayInMilli, maxDelayInMilli);
+        } else {
+            randomOffset = minDelayInMilli;
+        }
         long updatedTimestamp = event.getTimestamp() + timeDifference + randomOffset;
         long timeUntilOutput = (updatedTimestamp - startingTimestamp) / speedup;
         long outputTime = startingTimestamp + timeUntilOutput;
-        while (buffer.contains(new Tuple<>(outputTime, null))) {
+        while (buffer.contains(new Tuple2<>(outputTime, null))) {
             outputTime = outputTime + 1;
         }
-        buffer.add(new Tuple<>(outputTime, event));
-        // Check if something needs to be output.
-        while (true) {
-            currentProcessingTime = context.timerService().currentProcessingTime();
-            if(buffer.size() == 0) {
-                break;
-            }
-            Tuple<Long, T> iter = buffer.first();
-            long iterTimestamp = iter.x;
-            T iterEvent = iter.y;
-            if(iterTimestamp <= currentProcessingTime) {
-                collector.collect(iterEvent);
-                buffer.remove(iter);
-            } else {
-                break;
-            }
-        }
+        buffer.add(new Tuple2<>(outputTime, event));
+        output(context, collector);
 
         // Calculate size of buffer and wait if full.
         currentProcessingTime = context.timerService().currentProcessingTime();
@@ -76,7 +67,7 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
                 return;
             }
             long waitingOption1 = outputTime - currentProcessingTime;
-            long waitingOption2 = buffer.first().x - currentProcessingTime;
+            long waitingOption2 = buffer.first().f0 - currentProcessingTime;
             if(waitingOption1 <= 0 || waitingOption2 <= 0) {
                 return;
             }
@@ -85,6 +76,25 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
                 Thread.sleep(waitingOption2);
             } else {
                 Thread.sleep(waitingOption1);
+            }
+        }
+    }
+
+    private void output(Context context, Collector<T> collector) {
+        long currentProcessingTime;// Check if something needs to be output.
+        while (true) {
+            currentProcessingTime = context.timerService().currentProcessingTime();
+            if(buffer.size() == 0) {
+                break;
+            }
+            Tuple2<Long, T> iter = buffer.first();
+            long iterTimestamp = iter.f0;
+            T iterEvent = iter.f1;
+            if(iterTimestamp <= currentProcessingTime) {
+                collector.collect(iterEvent);
+                buffer.remove(iter);
+            } else {
+                break;
             }
         }
     }
