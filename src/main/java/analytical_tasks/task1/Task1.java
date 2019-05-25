@@ -41,11 +41,20 @@ public class Task1 {
 
     private static final String DEFAULT_CONFIG_LOCATION = "config.properties";
     private static final String kafkaBrokerList = "localhost:9092";
+    private static final String DEFAULT_OUTPUT_KAFKA_TOPIC_NAME = "activityCounter";
 
     public static void main(String[] args) throws Exception {
 
+        String configLocation = DEFAULT_CONFIG_LOCATION;
+        String outputKafkaTopicName = DEFAULT_OUTPUT_KAFKA_TOPIC_NAME;
+
+        if (args.length>0) {
+            configLocation = args[0];
+            outputKafkaTopicName = args[1];
+        }
+
         // Setup configurations
-        logger.info(String.format("Setting up configuration using config location: %s.", DEFAULT_CONFIG_LOCATION));
+        logger.info(String.format("Setting up configuration using config location: %s.", configLocation));
         setGlobalConfig(DEFAULT_CONFIG_LOCATION);
         org.apache.commons.configuration2.Configuration configs = Main.getGlobalConfig();
         assert configs != null;
@@ -74,8 +83,7 @@ public class Task1 {
 
         DataStream<LikeEvent> likeEvents = likeEventsSource
                 //.process(new ReorderProcess<LikeEvent>()).setParallelism(1)
-                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(10)) {
-
+                .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(maxDelay)) {
                     @Override
                     public long extractTimestamp(LikeEvent element) {
                         return element.getTimeMilisecond();
@@ -163,12 +171,10 @@ public class Task1 {
                 });
 
 
-        windowedResultStream.print();
-
         FlinkKafkaProducer011<Tuple2<Long, Iterable<Tuple3<String, String, Integer>>>> windowedResultStreamProducer =
                 new FlinkKafkaProducer011<>(
                         kafkaBrokerList, // broker list
-                        "activityCounter",
+                        outputKafkaTopicName,
                         new TupleSerializationSchema<>());
 
         windowedResultStream.addSink(windowedResultStreamProducer);
