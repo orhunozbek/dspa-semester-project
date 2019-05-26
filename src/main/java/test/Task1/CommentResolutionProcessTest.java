@@ -26,9 +26,13 @@ import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrderness
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import preparation.ReaderUtils;
 import preparation.ReorderProcess;
 import preparation.StreamDataPreparation;
@@ -44,6 +48,8 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMI
 import static preparation.ReaderUtils.Topic.Comment;
 
 public class CommentResolutionProcessTest {
+
+    private static Logger logger = LoggerFactory.getLogger(CommentResolutionProcessTest.class);
 
 
     private HashMap<String,String> postMap =  new HashMap<>();
@@ -99,7 +105,6 @@ public class CommentResolutionProcessTest {
         int maxDelay = configuration.getInt("maxDelayInSec");
 
         SplitStream<CommentEvent> commentEvents = commentEventsSource
-                .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
 
                     @Override
@@ -160,6 +165,15 @@ public class CommentResolutionProcessTest {
         StreamDataPreparation streamDataPreparation = new StreamDataPreparation();
         assert(streamDataPreparation.start());
 
+        // Clean all topics
+        Properties props = new Properties();
+        props.put("delete.topic.enable", "true");
+        props.setProperty("bootstrap.servers", kafkaBrokerList);
+
+        AdminClient client = KafkaAdminClient.create(props);
+        String [] topicsToBeDeleted = {"comments", "commentMatching-test"};
+        client.deleteTopics(Arrays.asList(topicsToBeDeleted));
+
         try {
             constructPostMap(configuration);
         } catch (IOException e) {
@@ -186,7 +200,7 @@ public class CommentResolutionProcessTest {
         final Consumer<Long, String> consumer =  new KafkaConsumer<>(kafkaProps);
         consumer.subscribe(Collections.singletonList("commentMatching-test"));
 
-        final int giveUp = 100;
+        final int giveUp = 1000;
         int noRecordsCount = 0;
 
         while (true) {
@@ -208,7 +222,7 @@ public class CommentResolutionProcessTest {
             consumer.commitAsync();
         }
         consumer.close();
-        System.out.println("DONE");
+        logger.info("Test complete!");
 
     }
 

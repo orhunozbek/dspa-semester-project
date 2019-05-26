@@ -5,18 +5,28 @@ import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 /**
+ * A KeyedProcessFunction which counts comments, replies and unique user engagement from the beginning of the simulation.
+ * The Process is partitioned by postID. All keys emit events at the same event time; for each 30 minutes. Replies
+ * and Comments are updated each 30 minutes and user engagement statistics are updated each hour. If an event comes
+ * earlier than its EventTime, meaning that its EventTime is after the current window, the starting time of its
+ * window is calculated, and then a cache entry which maps that window to the count of events that happened at that
+ * window is created. These cached event counts are added to the sum once their window starts. Results are emitted for
+ * all active posts
  *
+ *
+ * Author: oezbeko
  */
-public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tuple, Tuple4<String, Integer, String, Long>, Tuple4<Long, String, String, Integer>> {
+public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tuple, Tuple4<String, Integer, String, Long>,
+        Tuple4<Long, String, String, Integer>> {
 
     /**
      * A set which contains the personID's for all Persons engaged by the post. Used to decide whether a user engagement
@@ -29,27 +39,58 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
      */
     private transient ValueState<Long> latestEvent;
 
-
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
     private transient ValueState<Boolean> timerSet;
 
-    // The timestamp of the current window
+    /**
+     * The beginning timestamp of the current window in EventTime. It is updated onTimer() method and set for the first
+     * time in processElement function.
+     */
     private transient ValueState<Long> currentWindowBegin;
 
-    // Counters for 3 statistics that we are interested in
+    /**
+     * Counters for the statistics that we are interested in. They represent the counts until the end of the window
+     * starting from currentWindowBegin
+     */
     private transient ValueState<Integer> userEngagementCounter;
     private transient ValueState<Integer> commentCounter;
     private transient ValueState<Integer> replyCounter;
 
-    // Queues for events which come early
-    private transient ListState<Long> replyQueue;
-    private transient ListState<Long> commentQueue;
-    private transient ListState<Tuple2<Long, String>> userEngagementQueue;
+    /**
+     * A map which projects future window beginnings to count of events within that timewindow. Once current watermark
+     * passes the start of a window which is stored in these counters, these counts are added to the main counters.
+     */
+    private transient MapState<Long, Integer> replyCache;
+    private transient MapState<Long, Integer> commentCache;
+    private transient MapState<Long, ArrayList<String>> userEngagementCache;
 
 
-    // Constants for eviction of events
+    /***
+     * Constants for update frequencies and active post definitions.
+     */
     public static final long replyUpdateTime = 1000 * 60 * 30;
     public static final long userEngagementUpdateTime = 1000 * 60 * 60;
     private static final long activeUserThreshold = 12 * 60 * 60 * 1000;
+
+    /**
+     * Returns the nearest window beginning before the timestamp
+     *
+     * @param timestamp Event timestamp
+     * @param updateTime updateTime, since we need to maintain windows with different sizes for different counters
+     * @return Nearest window beginning before the timestamp
+     */
+    private long getNearestWindowTime (long timestamp, long updateTime) throws IOException {
+        long startingTime = currentWindowBegin.value();
+
+        while (timestamp >= (startingTime + updateTime)){
+            startingTime += updateTime;
+        }
+
+        return startingTime;
+    }
 
     @Override
     public void processElement(Tuple4<String, Integer, String, Long> t,
@@ -64,14 +105,21 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
         }
 
         // If this is a comment increment both comment counter and reply counter
+        // If the event belongs to current timestamp, directly add it to the counter, otherwise cache the count
+
         if (t.f1 == 1) {
 
             if (t.f3 < currentWindowBegin.value() + replyUpdateTime) {
                 commentCounter.update(commentCounter.value() + 1);
                 replyCounter.update(replyCounter.value() + 1);
             } else {
-                commentQueue.add(t.f3);
-                replyQueue.add(t.f3);
+                long eventWindowTime = getNearestWindowTime(t.f3, replyUpdateTime);
+
+                if (commentCache.contains(eventWindowTime)) commentCache.put(eventWindowTime, commentCache.get(eventWindowTime) + 1);
+                else commentCache.put(eventWindowTime,1);
+
+                if (replyCache.contains(eventWindowTime)) replyCache.put(eventWindowTime, replyCache.get(eventWindowTime) + 1);
+                else replyCache.put(eventWindowTime,1);
             }
 
 
@@ -80,16 +128,33 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
             if (t.f3 < currentWindowBegin.value() + replyUpdateTime) {
                 replyCounter.update(replyCounter.value() + 1);
             } else {
-                replyQueue.add(t.f3);
+                long eventWindowTime = getNearestWindowTime(t.f3, replyUpdateTime);
+
+                if (replyCache.contains(eventWindowTime)) replyCache.put(eventWindowTime, replyCache.get(eventWindowTime) + 1);
+                else replyCache.put(eventWindowTime,1);
             }
         }
+
+        // IMPORTANT REMARK: Here the logic is slightly different, we also need to cache the userID since maybe the event
+        // could be unique in ProcessingTime but not unique in EventTime; because there is another event with the same
+        // personID processed after but happened earlier in EventTime
 
         if (!userEngagement.contains(t.f2)) {
             if (t.f3 < currentWindowBegin.value() + userEngagementUpdateTime) {
                 userEngagement.put(t.f2, 1);
                 userEngagementCounter.update(userEngagementCounter.value() + 1);
             } else {
-                userEngagementQueue.add(new Tuple2<>(t.f3, t.f2));
+                long eventWindowTime = getNearestWindowTime(t.f3, userEngagementUpdateTime);
+
+                if (userEngagementCache.contains(eventWindowTime)){
+                    ArrayList<String> cur = userEngagementCache.get(eventWindowTime);
+                    cur.add(t.f2);
+                    userEngagementCache.put(eventWindowTime,cur);
+                } else{
+                    ArrayList<String> cur = new ArrayList<>();
+                    cur.add (t.f2);
+                    userEngagementCache.put(eventWindowTime,cur);
+                }
             }
         }
 
@@ -118,39 +183,32 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
         }
 
-        ArrayList<Long> newReplyQueue = new ArrayList<>();
-        for (long queuedReply : replyQueue.get()) {
-            if (queuedReply <= currentWindowBegin.value() + replyUpdateTime) {
-                replyCounter.update(replyCounter.value() + 1);
-            } else {
-                newReplyQueue.add(queuedReply);
-            }
+        // Update counters if there are events which come earlier and belongs to the window beginning with
+        // currentWindowBegin
+
+        if (commentCache.contains(currentWindowBegin.value())) {
+            commentCounter.update(commentCounter.value() + commentCache.get(currentWindowBegin.value()));
+            commentCache.remove(currentWindowBegin.value());
         }
-        replyQueue.update(newReplyQueue);
 
-        ArrayList<Long> newCommentQueue = new ArrayList<>();
-        for (long queuedComment : commentQueue.get()) {
-            if (queuedComment <= currentWindowBegin.value() + replyUpdateTime) {
-                commentCounter.update(commentCounter.value() + 1);
-            } else {
-                newCommentQueue.add(queuedComment);
-            }
+        if (replyCache.contains(currentWindowBegin.value())) {
+            replyCounter.update(replyCounter.value() + replyCache.get(currentWindowBegin.value()));
+            replyCache.remove(currentWindowBegin.value());
         }
-        commentQueue.update(newCommentQueue);
 
-        ArrayList<Tuple2<Long, String>> newEngagementQueue = new ArrayList<>();
+        if (userEngagementCache.contains(currentWindowBegin.value())){
 
-        for (Tuple2<Long, String> queuedEngagement : userEngagementQueue.get()) {
-            if (queuedEngagement.f0 <= currentWindowBegin.value() + userEngagementUpdateTime) {
-                if (!userEngagement.contains(queuedEngagement.f1)) {
-                    userEngagement.put(queuedEngagement.f1, 1);
+            Iterable<String> possibleUserEngagementEvents = userEngagementCache.get(currentWindowBegin.value());
+
+            // If the event is unique, meaning that it is the first engagement received from the user, then update the count.
+            for (String personID: possibleUserEngagementEvents){
+                if (!userEngagement.contains(personID)){
+                    userEngagement.put(personID,1);
                     userEngagementCounter.update(userEngagementCounter.value() + 1);
                 }
-            } else {
-                newEngagementQueue.add(queuedEngagement);
             }
+            userEngagementCache.remove(currentWindowBegin.value());
         }
-        userEngagementQueue.update(newEngagementQueue);
 
     }
 
@@ -203,25 +261,27 @@ public class Task1_CounterKeyedProcessFunction extends KeyedProcessFunction<Tupl
 
         userEngagement = getRuntimeContext().getMapState(userEngagementDescriptor);
 
-        ListStateDescriptor<Long> replyQueueDescriptor = new ListStateDescriptor<Long>(
-                "replyQueue",
-                BasicTypeInfo.LONG_TYPE_INFO
+        MapStateDescriptor<Long, Integer> replyCacheDescriptor = new MapStateDescriptor<>(
+                "replyCache",
+                BasicTypeInfo.LONG_TYPE_INFO,
+                BasicTypeInfo.INT_TYPE_INFO
         );
-        replyQueue = getRuntimeContext().getListState(replyQueueDescriptor);
+        replyCache = getRuntimeContext().getMapState(replyCacheDescriptor);
 
-        ListStateDescriptor<Long> commentQueueDescriptor = new ListStateDescriptor<Long>(
-                "commentQueue",
-                BasicTypeInfo.LONG_TYPE_INFO
+        MapStateDescriptor<Long, Integer> commentCacheDescriptor = new MapStateDescriptor<>(
+                "commentCache",
+                BasicTypeInfo.LONG_TYPE_INFO,
+                BasicTypeInfo.INT_TYPE_INFO
         );
-        commentQueue = getRuntimeContext().getListState(commentQueueDescriptor);
+        commentCache = getRuntimeContext().getMapState(commentCacheDescriptor);
 
-        ListStateDescriptor<Tuple2<Long, String>> userEngagementQueueDescriptor = new ListStateDescriptor<>(
-                "userEngagementQueue",
-                TypeInformation.of(new TypeHint<Tuple2<Long, String>>() {
-                })
+        MapStateDescriptor<Long, ArrayList<String>> userEngagementCacheDescriptor = new MapStateDescriptor<Long, ArrayList<String>>(
+                "userEngagementCache",
+                BasicTypeInfo.LONG_TYPE_INFO,
+                TypeInformation.of(new TypeHint<ArrayList<String>>() {})
         );
 
-        userEngagementQueue = getRuntimeContext().getListState(userEngagementQueueDescriptor);
+        userEngagementCache = getRuntimeContext().getMapState(userEngagementCacheDescriptor);
 
     }
 }
