@@ -9,86 +9,90 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-import static analytical_tasks.task3.Task3_Metrics.calculateUniqueWordsOverWordsMetric;
-import static analytical_tasks.task3.Task3_Metrics.countBadWords;
+import static analytical_tasks.task3.Task3_TextMetrics.calculateUniqueWordsOverWordsMetric;
+import static analytical_tasks.task3.Task3_TextMetrics.countBadWords;
 
 public class Task3_PostsMetricsProcess extends KeyedProcessFunction<String, PostEvent, Tuple4<String, Integer, Double, Long>> {
 
-        private transient ValueState<Long> processedWatermark;
-        private transient ValueState<Double> calculateUniqueWordsOverWordsMetricSum;
-        private transient ValueState<Double> profanityFilteredWords;
-        private transient ValueState<Integer> count;
+    /**
+     * A counter which is used to calculate average number of unique words over all wordse
+     */
+    private transient ValueState<Double> calculateUniqueWordsOverWordsMetricSum;
+    private transient ValueState<Double> numberOfProfanityFilteredWords;
+    private transient ValueState<Integer> count;
 
-        @Override
-        public void processElement(PostEvent postEvent, Context context,
-                Collector<Tuple4<String, Integer, Double, Long>> collector) throws Exception {
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
+    private transient ValueState<Boolean> timerSet;
 
-            String post = postEvent.getContent();
+    @Override
+    public void processElement(PostEvent postEvent, Context context,
+                               Collector<Tuple4<String, Integer, Double, Long>> collector) throws Exception {
 
-            Double uniqueOverWord = calculateUniqueWordsOverWordsMetric(post);
-            calculateUniqueWordsOverWordsMetricSum.update(
-                    calculateUniqueWordsOverWordsMetricSum.value() +
-                            uniqueOverWord);
-
-            // Increment the number of total posts
-            count.update(count.value() + 1);
-
-            // Profanity filtering
-            profanityFilteredWords.update(profanityFilteredWords.value() + countBadWords(post));
-
-
-            if (processedWatermark.value() < context.timerService().currentWatermark()) {
-
-                processedWatermark.update(context.timerService().currentWatermark());
-
-                collector.collect(new Tuple4<>(postEvent.getPersonId(),
-                        0,
-                        calculateUniqueWordsOverWordsMetricSum.value()/count.value(),
-                        postEvent.getTimeMilisecond()));
-
-                collector.collect(new Tuple4<>(postEvent.getPersonId(),
-                        1,
-                        profanityFilteredWords.value()/count.value(),
-                        postEvent.getTimeMilisecond()));
-
-            }
-
+        if (!timerSet.value()) {
+            context.timerService().registerEventTimeTimer(context.timerService().currentWatermark() + 1);
+            timerSet.update(true);
         }
 
-        @Override
-        public void open(Configuration parameters) throws Exception {
-            super.open(parameters);
+        String post = postEvent.getContent();
 
-            // Feature, number of unique words over words in a Comment, Text feature
-            ValueStateDescriptor<Double> calculateUniqueWordsOverWordsMetricSumDescriptor =
-                    new ValueStateDescriptor<>("calculateUniqueWordsOverWordsMetricSum",
-                            BasicTypeInfo.DOUBLE_TYPE_INFO, 0.0);
+        Double uniqueOverWord = calculateUniqueWordsOverWordsMetric(post);
+        calculateUniqueWordsOverWordsMetricSum.update(calculateUniqueWordsOverWordsMetricSum.value() + uniqueOverWord);
 
-            calculateUniqueWordsOverWordsMetricSum =
-                    getRuntimeContext().getState(calculateUniqueWordsOverWordsMetricSumDescriptor);
+        // Increment the number of total posts
+        count.update(count.value() + 1);
 
-            // Number of messages which did not pass the profanity filter
-            ValueStateDescriptor<Double> profanityFilteredWordsDescriptor =
-                    new ValueStateDescriptor<>("profanityFilteredMessages",
-                            BasicTypeInfo.DOUBLE_TYPE_INFO, 0.0);
+        // Profanity filtering
+        numberOfProfanityFilteredWords.update(numberOfProfanityFilteredWords.value() + countBadWords(post));
 
-            profanityFilteredWords =
-                    getRuntimeContext().getState(profanityFilteredWordsDescriptor);
+    }
 
-            // State for counter of CommentEvents for each PersonID
-            ValueStateDescriptor<Integer> countDescriptor =
-                    new ValueStateDescriptor<>("count",
-                            BasicTypeInfo.INT_TYPE_INFO, 0);
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx,
+                        Collector<Tuple4<String, Integer, Double, Long>> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 1);
 
-            count = getRuntimeContext().getState(countDescriptor);
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 0,
+                calculateUniqueWordsOverWordsMetricSum.value() / count.value(),
+                timestamp));
 
-            ValueStateDescriptor<Long> processedWatermarkDescriptor =
-                    new ValueStateDescriptor<>("processedWatermark",
-                            BasicTypeInfo.LONG_TYPE_INFO, 0L);
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 1,
+                numberOfProfanityFilteredWords.value() / count.value(),
+                timestamp));
 
-            processedWatermark = getRuntimeContext().getState(processedWatermarkDescriptor);
+    }
 
-        }
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+
+        // Feature, number of unique words over words in a Comment, Text feature
+        ValueStateDescriptor<Double> calculateUniqueWordsOverWordsMetricSumDescriptor =
+                new ValueStateDescriptor<>("calculateUniqueWordsOverWordsMetricSum",
+                        BasicTypeInfo.DOUBLE_TYPE_INFO, 0.0);
+
+        calculateUniqueWordsOverWordsMetricSum =
+                getRuntimeContext().getState(calculateUniqueWordsOverWordsMetricSumDescriptor);
+
+        // Number of messages which did not pass the profanity filter
+        ValueStateDescriptor<Double> profanityFilteredWordsDescriptor =
+                new ValueStateDescriptor<>("profanityFilteredMessages",
+                        BasicTypeInfo.DOUBLE_TYPE_INFO, 0.0);
+
+        numberOfProfanityFilteredWords =
+                getRuntimeContext().getState(profanityFilteredWordsDescriptor);
+
+        // State for counter of CommentEvents for each PersonID
+        ValueStateDescriptor<Integer> countDescriptor =
+                new ValueStateDescriptor<>("count",
+                        BasicTypeInfo.INT_TYPE_INFO, 0);
+
+        count = getRuntimeContext().getState(countDescriptor);
+
+    }
 
 }
 
