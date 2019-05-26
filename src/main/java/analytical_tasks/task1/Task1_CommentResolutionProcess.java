@@ -13,11 +13,33 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
+/**
+ *  A KeyedBroadcastProcessFunction which takes a KeyedStream of CommentEvents (keyed by postID) and a BroadcastStream
+ *  of CommentEvents (without a postID). Finds parent postId's of CommentEvents with empty reply_to_post_Id fields. This
+ *  is achieved by maintaining a mapping from commentIDs to corresponding postIDs which represents a flattened tree.
+ *
+ * Author: oezbeko
+ */
 public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunction<String, CommentEvent, CommentEvent, CommentEvent> {
 
+    /**
+     * A mapping from commentID to a list of comment events. Each key contains a list of commentEvents without a postID
+     * and with reply_to_key_id equals to key. This data structure is a staging area for comment events without a postID.
+     * Each time a watermark is received, these cached comments are resolved and map to their parent postID. This is done
+     * through onTimer function.
+     */
     private HashMap<String, ArrayList<CommentEvent>> cache = new HashMap<>();
 
+    /**
+     * A set which contains all commentIds corresponding to a postID. Since the stream is keyed by the postID, this
+     * KeyedState is also partitioned by postIDs.
+     */
     private transient MapState<String,String> equivalenceClass;
+
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
     private transient ValueState<Boolean> timerSet;
 
     @Override
@@ -34,6 +56,14 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
 
     }
 
+    /**
+     *  A recursive function which adds a CommentEvent to the equivalence class of a postID, making it a part of that
+     *  particular post. In addition, the cache is queried recursively so that all CommentEvents that replies this
+     *  CommentEvent is also added to the equivalence class. (And also their successors)
+     *
+     * @param commentEvent: CommentEvent to be emitted to downstream after postID resolution.
+     * @param collector: collector instance to send the event to downstream.
+     */
     private void emitReply(CommentEvent commentEvent, Collector<CommentEvent> collector) throws Exception {
 
         equivalenceClass.put(commentEvent.getId(), "");
@@ -52,6 +82,7 @@ public class Task1_CommentResolutionProcess extends KeyedBroadcastProcessFunctio
     @Override
     public void processBroadcastElement(CommentEvent commentEvent, Context context, Collector<CommentEvent> collector) throws Exception {
 
+        // If cache does not have the commentID, add the entry, otherwise, add the Event to its parent comment.
         if (cache.get(commentEvent.getReply_to_commentId()) == null) {
 
             ArrayList<CommentEvent> arr = new ArrayList<>();

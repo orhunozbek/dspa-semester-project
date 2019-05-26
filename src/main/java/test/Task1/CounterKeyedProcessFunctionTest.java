@@ -4,6 +4,7 @@ import analytical_tasks.task1.Task1;
 import analytical_tasks.task1.Task1_CounterKeyedProcessFunction;
 import kafka.EventKafkaProducer;
 import main.Main;
+import model.CommentEvent;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -11,6 +12,8 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.shaded.guava18.com.google.common.collect.ImmutableMap;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.Test;
@@ -34,12 +37,20 @@ import static preparation.ReaderUtils.Topic.Like;
 
 public class CounterKeyedProcessFunctionTest {
 
-    // Initialize Logger
     private static Logger logger = LoggerFactory.getLogger(CounterKeyedProcessFunctionTest.class);
 
+    /**
+     * Counter data structures which are used to get count events at any point in time. The keys are postIDs, indicating
+     * the posts which are associated with the counters, values are lists of timestamps, they are sorted in ascending
+     * order at all times. They represents the time of the incoming events.
+     */
     private HashMap<String, ArrayList<Long>> commentCounter = new HashMap<>();
     private HashMap<String, ArrayList<Long>> replyCounter = new HashMap<>();
     private HashMap<String, ArrayList<Long>> userEngagementCounter = new HashMap<>();
+
+    /**
+     * A map which maps commentIDs to postIDs. It is used to
+     */
     private HashMap<String, String> postMap = new HashMap<>();
 
     // A map which projects posts to a set of users who are engaged by that post
@@ -109,7 +120,7 @@ public class CounterKeyedProcessFunctionTest {
     private long getUpdateTimeForEvent(String s) {
         switch (s) {
             case "comment":
-                return Task1_CounterKeyedProcessFunction.commentUpdateTime;
+                return Task1_CounterKeyedProcessFunction.replyUpdateTime;
             case "reply":
                 return Task1_CounterKeyedProcessFunction.replyUpdateTime;
             case "userEngagement":
@@ -176,7 +187,9 @@ public class CounterKeyedProcessFunctionTest {
 
     }
 
-
+    /**
+     *  Helper function which constructs userEngagementMap and userEngagementCounter
+     */
     private void constructUserEngagementCounter(Configuration config) throws IOException {
         config.getString("workingDirectory");
         ReaderUtils.Topic[] topics = new ReaderUtils.Topic[]{Like, Comment};
@@ -247,12 +260,25 @@ public class CounterKeyedProcessFunctionTest {
 
     @Test
     public void testCommentMatching() {
+
+        // Create a new working directory and put input data. Working directory will be completely ordered and
+        // respect to integrity constraints
         Configuration configuration = testSetup();
         StreamDataPreparation streamDataPreparation = new StreamDataPreparation();
         assert (streamDataPreparation.start());
 
+        // Clean all topics
+        Properties props = new Properties();
+        props.put("delete.topic.enable", "true");
+        props.setProperty("bootstrap.servers", kafkaBrokerList);
+
+        AdminClient client = KafkaAdminClient.create(props);
+        String [] topicsToBeDeleted = {"comments", "likes", "activityCounter-test"};
+        client.deleteTopics(Arrays.asList(topicsToBeDeleted));
+
         String[] args = {configurationFilePath, "activityCounter-test"};
 
+        // Create answer keys and also stream the data to Kafka
         try {
             constructPostMap(configuration);
             constructCommentAndReplyCounter(configuration);
@@ -273,6 +299,7 @@ public class CounterKeyedProcessFunctionTest {
             e.printStackTrace();
         }
 
+        // Create a Kafka consumer to stream the answers from
         Properties kafkaProps = new Properties();
         kafkaProps.setProperty("bootstrap.servers", kafkaBrokerList);
         kafkaProps.setProperty(AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -281,18 +308,16 @@ public class CounterKeyedProcessFunctionTest {
                 StringDeserializer.class);
         kafkaProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class);
-        kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG,
-                "Consumer" +
-                        System.currentTimeMillis());
+        // Setup a unique Consumer name
+        kafkaProps.put(ConsumerConfig.GROUP_ID_CONFIG, "Consumer" + System.currentTimeMillis());
 
 
         final Consumer<Long, String> consumer = new KafkaConsumer<>(kafkaProps);
         consumer.subscribe(Collections.singletonList("activityCounter-test"));
 
-        final int giveUp = 100;
+        final int giveUp = 1000;
         int noRecordsCount = 0;
         int count = 0;
-        HashSet<String> trackedPost = new HashSet<>();
 
         while (true) {
             final ConsumerRecords<Long, String> consumerRecords =
@@ -313,7 +338,7 @@ public class CounterKeyedProcessFunctionTest {
 
                         int realCountInfo = getCountAtTime(parsedRecord.f0, countInfo.f0, countInfo.f1);
                         int delayedCountInfo = getCountAtTime(
-                                parsedRecord.f0 - getUpdateTimeForEvent(countInfo.f1)*2,
+                                parsedRecord.f0 - getUpdateTimeForEvent(countInfo.f1) - 1000,
                                 countInfo.f0,
                                 countInfo.f1);
 
@@ -324,11 +349,14 @@ public class CounterKeyedProcessFunctionTest {
                     }
                 }
 
-                System.out.println(String.format("Processed %d windows", count));
+                if (count % 100 == 0) logger.info(String.format("Processed %d windows, window starting time: %d"
+                        , count, parsedRecord.f0));
             }
 
             consumer.commitAsync();
         }
+
+        logger.info("Test complete!");
         consumer.close();
 
 

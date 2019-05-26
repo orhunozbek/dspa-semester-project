@@ -54,15 +54,17 @@ public class Task1 {
             outputKafkaTopicName = args[1];
         }
 
-        // Setup configurations
+        // Setup configurations from .properties file
         logger.info(String.format("Setting up configuration using config location: %s.", configLocation));
         setGlobalConfig(DEFAULT_CONFIG_LOCATION);
         org.apache.commons.configuration2.Configuration configs = Main.getGlobalConfig();
         assert configs != null;
 
+        // Get maximum delay configuration to assign watermarks properly. This is a measure of out-of-orderness.
         int maxDelay = configs.getInt("maxDelayInSec");
         logger.info(String.format("Maximum delay for the source: %d.", maxDelay));
 
+        // Create stream execution environment, set time characteristic to EventTime.
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
@@ -76,7 +78,7 @@ public class Task1 {
         DataStream<CommentEvent> commentEventsSource = env.addSource(
                 new FlinkKafkaConsumer011<>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps));
 
-        // DataStream for likes
+        // Source for likes
         // Going to be used for user engagement and active post tracking
         DataStream<LikeEvent> likeEventsSource = env.addSource(
                 new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps));
@@ -91,6 +93,8 @@ public class Task1 {
                     }
                 });
 
+        // All CommentEvents are seperated into 2 if it has a postID, it is mapped to "withPostId" if it does not,
+        // it is mapped to "withoutPostID"
         SplitStream<CommentEvent> commentEvents = commentEventsSource
                 .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
@@ -110,8 +114,7 @@ public class Task1 {
                     return output;
                 });
 
-
-
+        // Create a Broadcast stream for comments withour postID
         MapStateDescriptor<String, CommentEvent> commentBroadcastStateDescriptor = new MapStateDescriptor<>(
                 "CommentsBroadcastState",
                 BasicTypeInfo.STRING_TYPE_INFO,
@@ -122,12 +125,16 @@ public class Task1 {
                 .select("withoutPostID")
                 .broadcast(commentBroadcastStateDescriptor);
 
-
+        // Create a keyedStream of comments with postIDs and key them by postID, and resolve CommentEvents without postIDs
+        // to CommentEvents with postIDs with a Process function
         DataStream<CommentEvent> replies = commentEvents.select("withPostID")
                 .keyBy((KeySelector<CommentEvent, String>) CommentEvent::getReply_to_postId)
                 .connect(commentWithoutIdBroadcastStream)
                 .process(new  Task1_CommentResolutionProcess());
 
+        // Map CommentEvents and LikeEvents to simpler structure;
+        // Tuple (PostID, EventType, PersonID, Timestamp)
+        // Event Type Correspondences to Integers: Comment: 0 , Reply: 1 , Like: 2
         DataStream<Tuple4<String,Integer,String, Long>> repliesSimplified = replies.map(new MapFunction<CommentEvent, Tuple4<String,Integer,String, Long>>() {
             @Override
             public Tuple4<String,Integer,String, Long> map(CommentEvent commentEvent) throws Exception {
@@ -143,15 +150,20 @@ public class Task1 {
             }
         });
 
-
-        // PostID, EventType, PersonID, Timestamp --> Input
-        // Timestamp, PostID, EventType, Count --> Output
-        // Comment: 0 , Reply: 1 , Like: 2
+        // Union the events and count them
+        // Input Stream Tuple (PostID, EventType, PersonID, Timestamp)
+        // Output Stream Tuple : (Timestamp, PostID, EventType, Count)
+        // Event Type Correspondences to Integers: Comment: 0 , Reply: 1 , Like: 2
         DataStream<Tuple4<Long, String, String, Integer>> resultStream = likesSimplified
                 .union(repliesSimplified)
                 .keyBy(0)
                 .process(new Task1_CounterKeyedProcessFunction());
 
+
+        // Each post maintain its counts on its own, 30 min updates are aggregated using a windowAll function and
+        // aggregated. The result is a tuple of a timestamp and an iterable over the updates for each counterType and
+        // postID.
+        // Output (Timestamp (time of the update), Iterable(postId, statsType (commentcount, replycount etc.), count)
         DataStream<Tuple2<Long, Iterable<Tuple3<String, String, Integer>>>> windowedResultStream =
                 resultStream.windowAll(TumblingEventTimeWindows.of(Time.minutes(30)))
                 .process(new ProcessAllWindowFunction<Tuple4<Long, String, String, Integer>,
@@ -170,7 +182,6 @@ public class Task1 {
                         collector.collect( new Tuple2<>(context.window().getEnd(), resArray));
                     }
                 });
-
 
         FlinkKafkaProducer011<Tuple2<Long, Iterable<Tuple3<String, String, Integer>>>> windowedResultStreamProducer =
                 new FlinkKafkaProducer011<>(
