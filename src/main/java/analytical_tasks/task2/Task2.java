@@ -194,20 +194,18 @@ public class Task2 {
                             friendProposals[i] = result[i].returnTop5();
                             friendProposals[i].f0 = String.valueOf(context.window().getEnd());
                             collector.collect(friendProposals[i]);
-                            System.out.println(friendProposals[i]);
                         }
                     }
                 }).setParallelism(1)
                 .map(new MapFunction<Tuple12<String, String, String, String, String, String, String, String, String, String, String, String>, Tuple7 < String, String, String, String, String, String, String >>() {
                          @Override
-                         public Tuple7 < String, String, String, String, String, String, String > map(Tuple12<String, String, String, String, String, String, String, String, String, String, String, String> inputTuple) throws Exception {
-                             Tuple7 < String, String, String, String, String, String, String > result = new Tuple7<String, String, String, String, String, String, String>();
+                         public Tuple7 < String, String, String, String, String, String, String > map(Tuple12<String, String, String, String, String, String, String, String, String, String, String, String> inputTuple) {
+                             Tuple7 < String, String, String, String, String, String, String > result = new Tuple7<>();
                              result.setField(inputTuple.f0, 0);
                              result.setField(inputTuple.f1, 1);
                              for (int i = 0; i < 5; i++) {
                                  result.setField(inputTuple.getField((i * 2) + 2), i + 2);
                              }
-                             System.out.println(result);
                              return result;
                          }
                 });
