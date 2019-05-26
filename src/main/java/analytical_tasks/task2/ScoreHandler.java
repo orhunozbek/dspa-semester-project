@@ -76,7 +76,8 @@ public class ScoreHandler {
     }
 
     // Returns the top 5 suggested users in a linked list.
-    public Tuple12 returnTop5() throws Exception {
+    public Tuple12<String,String,String,String,String,String,String,String,String,String,String,String>
+            returnTop5() throws Exception {
         // Remove self
         if (randSelectedUserMap.containsKey(randSelectedUserId)) {
             randSelectedUserMap.remove(randSelectedUserId);

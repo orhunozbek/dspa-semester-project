@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class PostEvent extends Event {
+public class PostEvent extends Event implements HasUserID {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -140,5 +140,10 @@ public class PostEvent extends Event {
     @Override
     public long getTimestamp() {
         return timeMilisecond;
+    }
+
+    @Override
+    public String getUserId() {
+        return personId;
     }
 }
