@@ -93,6 +93,7 @@ public class Task3 {
                             }
                         });
 
+        // For each stream type, features are calculated.
 
         // (PersonId, FeatureID, FeatureValue, Time)
         DataStream<Tuple4<String, Integer, Double, Long>> postFeatures = postsEventSource
@@ -113,13 +114,14 @@ public class Task3 {
         BroadcastStream<PostEvent> postsBroadcastStream = postsEventSource
                 .broadcast(postBroadcastStateDescriptor);
 
+        // (PersonId, FeatureID, FeatureValue, Time)
         DataStream<Tuple4<String, Integer, Double, Long>> likeEventStat =
-
                 likeEventsSource.keyBy((KeySelector<LikeEvent, String>) LikeEvent::getPersonId)
                         .connect(postsBroadcastStream)
                         .process(new Task3_LikesMetricsProcess());
 
         // (PersonID, featureID, FeatureValue (User), FeatureValue (Current Mean))
+        // Union all feature streams, partition by feature type, find outliers for each feature.
         DataStream<Tuple5<String, Integer, Double, Double, Long>> outlierDetection = postFeatures
                 .union(commentFeatures)
                 .union(likeEventStat)

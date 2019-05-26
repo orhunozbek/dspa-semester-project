@@ -15,9 +15,13 @@ import static analytical_tasks.task3.Task3_TextMetrics.countBadWords;
 public class Task3_PostsMetricsProcess extends KeyedProcessFunction<String, PostEvent, Tuple4<String, Integer, Double, Long>> {
 
     /**
-     * A counter which is used to calculate average number of unique words over all wordse
+     * A counter which is used to calculate average number of unique words over all words in a Person's Posts
      */
     private transient ValueState<Double> calculateUniqueWordsOverWordsMetricSum;
+
+    /**
+     * Average number of bad words in a Person's Posts
+     */
     private transient ValueState<Double> numberOfProfanityFilteredWords;
     private transient ValueState<Integer> count;
 
@@ -54,15 +58,8 @@ public class Task3_PostsMetricsProcess extends KeyedProcessFunction<String, Post
                         Collector<Tuple4<String, Integer, Double, Long>> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 1);
-
-        out.collect(new Tuple4<>(ctx.getCurrentKey(), 0,
-                calculateUniqueWordsOverWordsMetricSum.value() / count.value(),
-                timestamp));
-
-        out.collect(new Tuple4<>(ctx.getCurrentKey(), 1,
-                numberOfProfanityFilteredWords.value() / count.value(),
-                timestamp));
-
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 0, calculateUniqueWordsOverWordsMetricSum.value() / count.value(), timestamp));
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 1, numberOfProfanityFilteredWords.value() / count.value(), timestamp));
     }
 
     @Override
@@ -91,6 +88,12 @@ public class Task3_PostsMetricsProcess extends KeyedProcessFunction<String, Post
                         BasicTypeInfo.INT_TYPE_INFO, 0);
 
         count = getRuntimeContext().getState(countDescriptor);
+
+        ValueStateDescriptor<Boolean> timerSetDescriptor =
+                new ValueStateDescriptor<>("timerSet",
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
+
+        timerSet = getRuntimeContext().getState(timerSetDescriptor);
 
     }
 

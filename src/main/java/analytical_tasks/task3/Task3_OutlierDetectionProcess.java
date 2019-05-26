@@ -19,14 +19,78 @@ import java.util.Map;
 public class Task3_OutlierDetectionProcess extends KeyedProcessFunction<Tuple, Tuple4<String, Integer, Double, Long>,
         Tuple5<String, Integer, Double, Double, Long>> {
 
+    private static Logger logger = LoggerFactory.getLogger(Task3_OutlierDetectionProcess.class);
+
     private transient ValueState<Double> average;
     private transient ValueState<Double> stdev;
-    private transient ValueState<Long> statsCalculationTime;
+
+    /**
+     * A map which stores the current value of a feature for each Person.
+     */
     private transient MapState<String, Double> currentValues;
 
-    // Time to wait in order to update mean and stdev
+    /**
+     * Time to wait in order to update mean and stdev
+     */
     private static final long waitTime = 24 * 1000 * 60 * 60;
-    private static Logger logger = LoggerFactory.getLogger(Task3_OutlierDetectionProcess.class);
+
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
+    private transient ValueState<Boolean> timerSet;
+    private transient ValueState<Boolean> statsCalculated;
+
+    @Override
+    public void processElement(Tuple4<String, Integer, Double, Long> t,
+                               Context context,
+                               Collector<Tuple5<String, Integer, Double, Double, Long>> collector) throws Exception {
+
+        if (!timerSet.value()) {
+
+            long eventTimerTime  = context.timerService().currentWatermark()
+                    - context.timerService().currentWatermark() % waitTime + waitTime;
+
+            context.timerService().registerEventTimeTimer(eventTimerTime);
+            timerSet.update(true);
+        }
+
+        // Update the state with latest information
+        currentValues.put(t.f0, t.f2);
+
+        // If mean and variance is calculated and new value is more than 3 stdevs away from the mean
+        // send an event, this person is an outlier
+        if (statsCalculated.value() && Math.abs(t.f2 - average.value()) > stdev.value() * 3)
+                collector.collect(new Tuple5<>(t.f0, t.f1, t.f2, average.value(), t.f3));
+    }
+
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple5<String, Integer, Double, Double, Long>> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + waitTime);
+        if (!statsCalculated.value()) statsCalculated.update(true);
+
+        Double sum = 0.0;
+        double varianceAccumulator = 0.0;
+        int count = 0;
+
+
+        for (Map.Entry<String, Double> entry : currentValues.entries()) {
+            sum += entry.getValue();
+            count++;
+        }
+
+        average.update(sum / count);
+
+        for (Map.Entry<String, Double> entry : currentValues.entries()) {
+            varianceAccumulator += Math.pow(average.value() - entry.getValue(), 2);
+        }
+
+        stdev.update(Math.sqrt(varianceAccumulator / count));
+        logger.info("Mean and standard deviation for feature {} is calculated. Mean: {}, StDev: {}",
+                ctx.getCurrentKey(), average.value(), stdev.value());
+
+    }
 
     @Override
     public void open(Configuration parameters) throws Exception {
@@ -53,57 +117,17 @@ public class Task3_OutlierDetectionProcess extends KeyedProcessFunction<Tuple, T
 
         currentValues = getRuntimeContext().getMapState(currentValuesDescriptor);
 
-        ValueStateDescriptor<Long> statsCalculatedDescriptor =
+        ValueStateDescriptor<Boolean> timerSetDescriptor =
+                new ValueStateDescriptor<>("timerSet",
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
+
+        timerSet = getRuntimeContext().getState(timerSetDescriptor);
+
+        ValueStateDescriptor<Boolean> statsCalculatedDescriptor =
                 new ValueStateDescriptor<>("statsCalculated",
-                        BasicTypeInfo.LONG_TYPE_INFO, 0L);
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
 
-        statsCalculationTime = getRuntimeContext().getState(statsCalculatedDescriptor);
-
-    }
-
-    @Override
-    public void processElement(Tuple4<String, Integer, Double, Long> t,
-                               Context context,
-                               Collector<Tuple5<String, Integer, Double, Double, Long>> collector) throws Exception {
-
-        // Update the state with latest information
-        currentValues.put(t.f0, t.f2);
-
-        if (statsCalculationTime.value() + waitTime < context.timerService().currentWatermark()) {
-
-            statsCalculationTime.update(context.timerService().currentWatermark());
-
-            Double sum = 0.0;
-            double varianceAccumulator = 0.0;
-            int count = 0;
-
-
-            for (Map.Entry<String, Double> entry : currentValues.entries()) {
-                sum += entry.getValue();
-                count++;
-            }
-
-            average.update(sum / count);
-
-            for (Map.Entry<String, Double> entry : currentValues.entries()) {
-                varianceAccumulator += Math.pow(average.value() - entry.getValue(), 2);
-            }
-
-            stdev.update(Math.sqrt(varianceAccumulator / count));
-            logger.info("Mean and standard deviation for feature {} is calculated. Mean: {}, StDev: {}",
-                    t.f1, average.value(), stdev.value());
-        }
-
-        // If mean and variance is calculated, we can run
-        if (statsCalculationTime.value() != 0L) {
-
-            // If the new value is more than 2 stdevs away from the mean
-            // send an event, this person is an outlier
-            if (Math.abs(t.f2 - average.value()) > stdev.value() * 3) {
-                collector.collect(new Tuple5<>(t.f0, t.f1, t.f2, average.value()
-                        , t.f3));
-            }
-        }
+        statsCalculated = getRuntimeContext().getState(statsCalculatedDescriptor);
 
     }
 }

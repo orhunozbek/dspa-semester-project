@@ -22,57 +22,34 @@ import java.util.HashSet;
 
 public class Task3_LikesMetricsProcess extends KeyedBroadcastProcessFunction<String, LikeEvent, PostEvent, Tuple4<String, Integer, Double, Long>> {
 
+    // Initialize Logger
+    private static Logger logger = LoggerFactory.getLogger(Task3_LikesMetricsProcess.class);
+
     private transient HashMap<String, String> postBelongsTo;
 
     private transient ValueState<Integer> count;
     private transient ListState<LikeEvent> likeEventsBuffer;
-    private transient ValueState<Long> processedWatermark;
     private transient ValueState<HashSet<String>> personLikesPerson;
 
-    // Initialize Logger
-    private static Logger logger = LoggerFactory.getLogger(Task3_LikesMetricsProcess.class);
+
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
+    private transient ValueState<Boolean> timerSet;
+
 
     @Override
     public void processElement(LikeEvent likeEvent, ReadOnlyContext readOnlyContext,
                                Collector<Tuple4<String, Integer, Double, Long>> collector) throws Exception {
 
+        if (!timerSet.value()) {
+            readOnlyContext.timerService().registerEventTimeTimer(readOnlyContext.timerService().currentWatermark() + 1);
+            timerSet.update(true);
+        }
+
         count.update(count.value() + 1);
         likeEventsBuffer.add(likeEvent);
-
-        if (processedWatermark.value() < readOnlyContext.timerService().currentWatermark()) {
-
-            processedWatermark.update(readOnlyContext.timerService().currentWatermark());
-            ArrayList<LikeEvent> notToBeProcessedItems = new ArrayList<>();
-            HashSet<String> currentPersonLikesPerson = personLikesPerson.value();
-
-            for (LikeEvent event : likeEventsBuffer.get()) {
-
-                if (event.getTimeMilisecond() < processedWatermark.value()) {
-
-                    if (postBelongsTo.containsKey(event.getPostId())) {
-
-                        String personID = postBelongsTo.get(event.getPostId());
-                        currentPersonLikesPerson.add(personID);
-
-                    } else {
-                        logger.warn("LikeEvent with postID:{} could not be matched.", event.getPostId());
-                        notToBeProcessedItems.add(event);
-                    }
-
-                } else {
-                    notToBeProcessedItems.add(event);
-                }
-            }
-
-            personLikesPerson.update(currentPersonLikesPerson);
-            likeEventsBuffer.clear();
-            likeEventsBuffer.addAll(notToBeProcessedItems);
-
-            collector.collect(new Tuple4<>(likeEvent.getPersonId(),
-                    5,
-                    (double) currentPersonLikesPerson.size() / count.value()
-                    , likeEvent.getTimestamp()));
-        }
 
     }
 
@@ -80,6 +57,41 @@ public class Task3_LikesMetricsProcess extends KeyedBroadcastProcessFunction<Str
     public void processBroadcastElement(PostEvent postEvent, Context context,
                                         Collector<Tuple4<String, Integer, Double, Long>> collector) throws Exception {
         postBelongsTo.put(postEvent.getId(), postEvent.getPersonId());
+    }
+
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple4<String, Integer, Double, Long>> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 1);
+
+        ArrayList<LikeEvent> notToBeProcessedItems = new ArrayList<>();
+        HashSet<String> currentPersonLikesPerson = personLikesPerson.value();
+
+        for (LikeEvent event : likeEventsBuffer.get()) {
+
+            if (event.getTimeMilisecond() < timestamp) {
+
+                if (postBelongsTo.containsKey(event.getPostId())) {
+
+                    String personID = postBelongsTo.get(event.getPostId());
+                    currentPersonLikesPerson.add(personID);
+
+                } else {
+                    logger.warn("LikeEvent with postID:{} could not be matched.", event.getPostId());
+                    notToBeProcessedItems.add(event);
+                }
+
+            } else {
+                notToBeProcessedItems.add(event);
+            }
+        }
+
+        personLikesPerson.update(currentPersonLikesPerson);
+        likeEventsBuffer.clear();
+        likeEventsBuffer.addAll(notToBeProcessedItems);
+
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 5, (double) currentPersonLikesPerson.size() / count.value(), timestamp));
+
     }
 
     @Override
@@ -104,12 +116,6 @@ public class Task3_LikesMetricsProcess extends KeyedBroadcastProcessFunction<Str
         likeEventsBuffer = getRuntimeContext().getListState(likeEventsBufferDescriptor);
 
 
-        ValueStateDescriptor<Long> processedWatermarkDescriptor =
-                new ValueStateDescriptor<>("processedWatermark",
-                        BasicTypeInfo.LONG_TYPE_INFO, 0L);
-
-        processedWatermark = getRuntimeContext().getState(processedWatermarkDescriptor);
-
         ValueStateDescriptor<HashSet<String>> personLikesPersonDescriptor =
                 new ValueStateDescriptor<>(
                         "personLikesPerson",
@@ -118,6 +124,12 @@ public class Task3_LikesMetricsProcess extends KeyedBroadcastProcessFunction<Str
                         new HashSet<>());
 
         personLikesPerson = getRuntimeContext().getState(personLikesPersonDescriptor);
+
+        ValueStateDescriptor<Boolean> timerSetDescriptor =
+                new ValueStateDescriptor<>("timerSet",
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
+
+        timerSet = getRuntimeContext().getState(timerSetDescriptor);
 
     }
 }

@@ -11,27 +11,49 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-import static analytical_tasks.task3.Task3_Metrics.*;
+import static analytical_tasks.task3.Task3_TextMetrics.*;
 
 public class Task3_CommentsMetricsProcess extends KeyedProcessFunction<String, CommentEvent, Tuple4<String, Integer, Double, Long>> {
 
+    /**
+     * A counter which is used to calculate average number of unique words over all words in a Person's Comments
+     */
     private transient ValueState<Double> calculateUniqueWordsOverWordsMetricSum;
+
+    /**
+     * Average number of bad words in a Person's Comments
+     */
     private transient ValueState<Double> profanityFilteredWords;
+
+    /**
+     * Counter for each word used by a Person
+      */
     private transient MapState<String, Integer> numberOfWordsUsed;
+
+    /**
+     * Number of comments processed comments
+     */
     private transient ValueState<Integer> count;
 
-    private transient ValueState<Long> processedWatermark;
+    /**
+     * A flag which is used to understand whether the first timer is set. Since onTimer() method registers the next timer
+     * only setting the first timer is enough in processElement.
+     */
+    private transient ValueState<Boolean> timerSet;
 
     @Override
     public void processElement(CommentEvent commentEvent, Context context,
                                Collector<Tuple4<String, Integer, Double, Long>> collector) throws Exception {
 
+        if (!timerSet.value()) {
+            context.timerService().registerEventTimeTimer(context.timerService().currentWatermark() + 1);
+            timerSet.update(true);
+        }
+
         String comment = commentEvent.getContent();
 
         Double uniqueOverWord = calculateUniqueWordsOverWordsMetric(comment);
-        calculateUniqueWordsOverWordsMetricSum.update(
-                calculateUniqueWordsOverWordsMetricSum.value() +
-                        uniqueOverWord);
+        calculateUniqueWordsOverWordsMetricSum.update(calculateUniqueWordsOverWordsMetricSum.value() + uniqueOverWord);
 
         // Count distinct words in the comment
         numberOfWordsUsed.putAll(vectorize(comment));
@@ -42,31 +64,24 @@ public class Task3_CommentsMetricsProcess extends KeyedProcessFunction<String, C
         // Profanity filtering
         profanityFilteredWords.update(profanityFilteredWords.value() + countBadWords(comment));
 
-        if (processedWatermark.value() < context.timerService().currentWatermark()) {
-
-            processedWatermark.update(context.timerService().currentWatermark());
-
-            collector.collect(new Tuple4<>(commentEvent.getPersonId(),
-                    2,
-                    calculateUniqueWordsOverWordsMetricSum.value() / count.value(),
-                    commentEvent.getTimeMilisecond()));
-
-            collector.collect(new Tuple4<>(commentEvent.getPersonId(),
-                    3,
-                    profanityFilteredWords.value() / count.value(),
-                    commentEvent.getTimeMilisecond()));
-
-            double distinctWords = 0.0;
-            for (String key : numberOfWordsUsed.keys()) {
-                distinctWords++;
-            }
-
-            collector.collect(new Tuple4<>(commentEvent.getPersonId(),
-                    4,
-                    distinctWords / count.value(),
-                    commentEvent.getTimeMilisecond()));
-        }
     }
+
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple4<String, Integer, Double, Long>> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 1);
+
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 2, calculateUniqueWordsOverWordsMetricSum.value() / count.value(), timestamp));
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 3, profanityFilteredWords.value() / count.value(), timestamp));
+
+        double distinctWords = 0.0;
+        for (String key : numberOfWordsUsed.keys()) {
+            distinctWords++;
+        }
+
+        out.collect(new Tuple4<>(ctx.getCurrentKey(), 4, distinctWords / count.value(), timestamp));
+    }
+
 
     @Override
     public void open(Configuration parameters) throws Exception {
@@ -104,11 +119,11 @@ public class Task3_CommentsMetricsProcess extends KeyedProcessFunction<String, C
 
         count = getRuntimeContext().getState(countDescriptor);
 
-        ValueStateDescriptor<Long> processedWatermarkDescriptor =
-                new ValueStateDescriptor<>("processedWatermark",
-                        BasicTypeInfo.LONG_TYPE_INFO, 0L);
+        ValueStateDescriptor<Boolean> timerSetDescriptor =
+                new ValueStateDescriptor<>("timerSet",
+                        BasicTypeInfo.BOOLEAN_TYPE_INFO, false);
 
-        processedWatermark = getRuntimeContext().getState(processedWatermarkDescriptor);
+        timerSet = getRuntimeContext().getState(timerSetDescriptor);
     }
 
 }
