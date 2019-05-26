@@ -16,6 +16,7 @@ import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple12;
+import org.apache.flink.api.java.tuple.Tuple7;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -147,11 +148,11 @@ public class Task2 {
                             }
                         });
                         ScoreHandler[] result = new ScoreHandler[10];
-                        for(int i = 0; i < 10; i++) {
+                        for (int i = 0; i < 10; i++) {
                             result[i] = new ScoreHandler(selectedUserIdArray[i]);
                             final int j = i;
                             active.entries().forEach(activeEntry -> {
-                                if(activeEntry.getValue()) {
+                                if (activeEntry.getValue()) {
                                     result[j].updateScore(activeEntry.getKey(), ACTIVE);
                                 }
                             });
@@ -166,7 +167,7 @@ public class Task2 {
                 });
 
         //Finally we first union all streams
-        DataStream resultStream = likeEventProcessedStream.union(postEventProcessedStream)
+        DataStream<Tuple7<String,String,String,String,String,String,String>> resultStream = likeEventProcessedStream.union(postEventProcessedStream)
                 .union(commentEventProcessedStream)
                 .union(activeScores)
                 //Then we perform another window
@@ -196,11 +197,23 @@ public class Task2 {
                             System.out.println(friendProposals[i]);
                         }
                     }
-                }).setParallelism(1);
+                }).setParallelism(1)
+                .map(new MapFunction<Tuple12<String, String, String, String, String, String, String, String, String, String, String, String>, Tuple7 < String, String, String, String, String, String, String >>() {
+                         @Override
+                         public Tuple7 < String, String, String, String, String, String, String > map(Tuple12<String, String, String, String, String, String, String, String, String, String, String, String> inputTuple) throws Exception {
+                             Tuple7 < String, String, String, String, String, String, String > result = new Tuple7<String, String, String, String, String, String, String>();
+                             result.setField(inputTuple.f0, 0);
+                             result.setField(inputTuple.f1, 1);
+                             for (int i = 0; i < 5; i++) {
+                                 result.setField(inputTuple.getField((i * 2) + 2), i + 2);
+                             }
+                             System.out.println(result);
+                             return result;
+                         }
+                });
 
 
-        FlinkKafkaProducer011<Tuple12<String, String, String, String, String, String, String,
-                String, String, String, String, String>> resultProducer =
+        FlinkKafkaProducer011<Tuple7<String, String, String, String, String, String, String>> resultProducer =
                 new FlinkKafkaProducer011<>(
                         configuration.getString("brokerList"),
                         configuration.getString("task2OutputTopic"),
