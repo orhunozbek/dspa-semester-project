@@ -7,15 +7,11 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.util.Comparator;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.ToLongFunction;
 
 public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
 
-    // Set this in config.properties to output verification output.
-    boolean verbose;
     // True until the first element is processed.
     boolean firstElement = true;
     // Time delta between the data and the processing time.
@@ -35,7 +31,6 @@ public class ReorderProcess<T extends Event> extends ProcessFunction<T, T> {
         long currentProcessingTime = context.timerService().currentProcessingTime();
         if (firstElement) {
             Configuration configuration = Main.getGlobalConfig();
-            verbose = configuration.getBoolean("task0Verbose");
             buffer = new TreeSet<>((c1, c2) -> {
                 if(c1.f0.equals(c2.f0)) {
                     return (int) (c1.f1.getTimestamp() - c2.f1.getTimestamp());

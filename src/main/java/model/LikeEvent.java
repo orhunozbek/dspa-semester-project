@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @JsonSerialize
-public class LikeEvent extends Event {
+public class LikeEvent extends Event implements HasUserID {
 
     @JsonProperty("timeMilisecond")
     private long timeMilisecond;
@@ -66,5 +66,10 @@ public class LikeEvent extends Event {
     @Override
     public long getTimestamp() {
         return timeMilisecond;
+    }
+
+    @Override
+    public String getUserId() {
+        return personId;
     }
 }
