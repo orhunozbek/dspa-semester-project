@@ -1,6 +1,7 @@
 package analytical_tasks.task3;
 
 import kafka.EventDeserializer;
+import kafka.EventKafkaProducer;
 import kafka.TupleSerializationSchema;
 import main.Main;
 import model.CommentEvent;
@@ -37,12 +38,20 @@ public class Task3 {
 
     private static final String DEFAULT_CONFIG_LOCATION = "config.properties";
     private static final String kafkaBrokerList = "localhost:9092";
-
+    private static final String DEFAULT_OUTPUT_KAFKA_TOPIC_NAME = "fradulentUserDetection";
 
     public static void main(String[] args) throws Exception {
 
-        logger.info(String.format("Setting up configuration using config location: %s.", DEFAULT_CONFIG_LOCATION));
-        setGlobalConfig(DEFAULT_CONFIG_LOCATION);
+        String configLocation = DEFAULT_CONFIG_LOCATION;
+        String outputKafkaTopicName = DEFAULT_OUTPUT_KAFKA_TOPIC_NAME;
+
+        if (args.length>0) {
+            configLocation = args[0];
+            outputKafkaTopicName = args[1];
+        }
+
+        logger.info(String.format("Setting up configuration using config location: %s.", configLocation));
+        setGlobalConfig(configLocation);
         org.apache.commons.configuration2.Configuration configs = Main.getGlobalConfig();
         assert configs != null;
 
@@ -135,7 +144,7 @@ public class Task3 {
         FlinkKafkaProducer011<Tuple5<String, Integer, Double, Double, Long>> fradulentUserDetectionProducer =
                 new FlinkKafkaProducer011<>(
                 kafkaBrokerList, // broker list
-                "fradulentUserDetection",
+                outputKafkaTopicName,
                 new TupleSerializationSchema<>());
 
         outlierDetection.addSink(fradulentUserDetectionProducer);
