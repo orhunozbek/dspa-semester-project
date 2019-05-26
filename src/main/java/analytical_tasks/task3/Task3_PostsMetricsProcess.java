@@ -12,6 +12,17 @@ import org.apache.flink.util.Collector;
 import static analytical_tasks.task3.Task3_TextMetrics.calculateUniqueWordsOverWordsMetric;
 import static analytical_tasks.task3.Task3_TextMetrics.countBadWords;
 
+/**
+ * A KeyedProcessFunction for the calculation of metrics about Posts. The Process is Keyed by PersonID. Two types of
+ * features are calculated.
+ *
+ * 1. Number of Unique Words in a sentence compared to total number of words in a Post. If this metric is low,
+ * it indicates that a Person uses same words repetitively
+ * 2. Number of profanityFilteredWords used by the person compared to number of posts
+ *
+ *
+ * Author: oezbeko
+ */
 public class Task3_PostsMetricsProcess extends KeyedProcessFunction<String, PostEvent, Tuple4<String, Integer, Double, Long>> {
 
     /**

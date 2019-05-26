@@ -1,7 +1,6 @@
 package analytical_tasks.task3;
 
 import kafka.EventDeserializer;
-import kafka.EventKafkaProducer;
 import kafka.TupleSerializationSchema;
 import main.Main;
 import model.CommentEvent;
@@ -24,6 +23,7 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer011;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import preparation.ReorderProcess;
 
 import java.util.*;
 
@@ -70,6 +70,7 @@ public class Task3 {
         // Source for all comment events
         DataStream<CommentEvent> commentEventsSource = env
                 .addSource(new FlinkKafkaConsumer011<>("comments", new EventDeserializer<>(CommentEvent.class), kafkaProps))
+                .process(new ReorderProcess<CommentEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(
                         new BoundedOutOfOrdernessTimestampExtractor<CommentEvent>(Time.seconds(maxDelay)) {
                             @Override
@@ -82,6 +83,7 @@ public class Task3 {
         // Going to be used for user engagement and active post tracking
         DataStream<LikeEvent> likeEventsSource = env
                 .addSource(new FlinkKafkaConsumer011<>("likes", new EventDeserializer<>(LikeEvent.class), kafkaProps))
+                .process(new ReorderProcess<LikeEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(
                         new BoundedOutOfOrdernessTimestampExtractor<LikeEvent>(Time.seconds(maxDelay)) {
                             @Override
@@ -94,6 +96,7 @@ public class Task3 {
         // Going to be used for user engagement and active post tracking
         DataStream<PostEvent> postsEventSource = env
                 .addSource(new FlinkKafkaConsumer011<>("posts", new EventDeserializer<>(PostEvent.class), kafkaProps))
+                .process(new ReorderProcess<PostEvent>()).setParallelism(1)
                 .assignTimestampsAndWatermarks(
                         new BoundedOutOfOrdernessTimestampExtractor<PostEvent>(Time.seconds(maxDelay)) {
                             @Override

@@ -16,6 +16,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
+/**
+ * A KeyedProcessFunction for the detection of Outliers. The Process is Keyed by FeatureID.
+ *
+ * Author: oezbeko
+ */
 public class Task3_OutlierDetectionProcess extends KeyedProcessFunction<Tuple, Tuple4<String, Integer, Double, Long>,
         Tuple5<String, Integer, Double, Double, Long>> {
 

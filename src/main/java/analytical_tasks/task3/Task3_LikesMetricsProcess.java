@@ -20,6 +20,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
+
+/**
+ * A KeyedProcessFunction for the calculation of metrics about Likes. The Process is Keyed by PersonID. One feature is
+ * calculated
+ *
+ * 1. Number of unique people liked by a person compared to number of likes by the user
+ *
+ * Author: oezbeko
+ */
 public class Task3_LikesMetricsProcess extends KeyedBroadcastProcessFunction<String, LikeEvent, PostEvent, Tuple4<String, Integer, Double, Long>> {
 
     // Initialize Logger

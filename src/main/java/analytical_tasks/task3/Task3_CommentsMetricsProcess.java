@@ -13,6 +13,18 @@ import org.apache.flink.util.Collector;
 
 import static analytical_tasks.task3.Task3_TextMetrics.*;
 
+/**
+ * A KeyedProcessFunction for the calculation of metrics about Comments. The Process is Keyed by PersonID. Three types of
+ * features are calculated.
+ *
+ * 1. Number of Unique Words in a sentence compared to total number of words in a Comment. If this metric is low,
+ * it indicates that a Person uses same words repetitively
+ * 2. Number of profanityFilteredWords used by the person compared to number of comments
+ * 3. Number of words used by the person compared to number of comments
+ *
+ *
+ * Author: oezbeko
+ */
 public class Task3_CommentsMetricsProcess extends KeyedProcessFunction<String, CommentEvent, Tuple4<String, Integer, Double, Long>> {
 
     /**
