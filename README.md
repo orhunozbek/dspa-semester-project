@@ -53,7 +53,9 @@ specific configuration which we don't have to change right now.
 the following scripts in this order: startup_script.sh ; create_topics.sh ;
 
 7. Run main class src/main/java/main/Main once. This will take a while as it
-now writes all the data from the input directory into Kafka.
+now writes all the data from the input directory into Kafka. Main class can 
+be stopped after receiving events in the console, that means that the application
+is successfully reading from Kafka.
 
 8. Since we don't want to write to Kafka all the time we change the according
 configuration in config.properties: writeToKafka = false.
@@ -64,4 +66,3 @@ need to check 5-8 again. Make sure that you write at least once to Kafka every
 time you shutdown your computer. When you do not shut down your computer you don't
 need to do any of these steps at all.
 
-How to run:
