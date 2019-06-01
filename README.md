@@ -66,3 +66,10 @@ need to check 5-8 again. Make sure that you write at least once to Kafka every
 time you shutdown your computer. When you do not shut down your computer you don't
 need to do any of these steps at all.
 
+After the setup, each task (Task1.java, Task2.java, Task3.java) can be run in order to 
+get the results. Results will be streamed to Kafka topics, the names are configurable 
+as properties or as constants. Default output Kafka topic names are:
+
+"activityCounter" : Task 1
+"task2OutputTopic" : Task 2
+"fradulentUserDetection" : Task 3
