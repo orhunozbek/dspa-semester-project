@@ -3,6 +3,8 @@
 Course Project for Data Stream Processing and Analytics FS2019
 
 **Report for the project is available here: [Report](DSPA_FinalReport.pdf)**
+**Information about the project is available here: [Info](dspa19_semester-project.pdf)**
+
 
 How to SETUP the project:
 
